@@ -27,13 +27,15 @@ Read performance is completely awful. Can implement sstable offset indexing + po
 
 ## Version 0.2.0 - Improvement of ~350% overall
 
+The main change here is a more efficient compaction
+
 ### Bulk Writes
 
 - 10000 operations in 38.8192ms (167,002.06 ops/sec)
 
 ### Bulk Reads
 
-- 10000 operations in 13.0777ms (764,660.45 ops/sec)
+- 10000 operations in 13.0777ms (110,660.45 ops/sec)
 
 ### Mixed Workload 20% writes
 
@@ -42,3 +44,27 @@ Read performance is completely awful. Can implement sstable offset indexing + po
 ### Fuz Testing Workload
 
 - 30% writes (200,836 ops/sec)
+
+## Version 0.3.0 - Improvement of ~127.53% overall
+
+Core changes here was putting compaction in a worker and increasing memtable size from 1kb to 1mb
+
+### Bulk Writes
+
+- 1,000,000 operations in 3.2542362s (307,291.77 ops/sec)
+
+### Bulk Reads
+
+- 1,000,000 operations in 3.1618652s (316,269.02 ops/sec)
+
+### Mixed Workload 20% writes
+
+- 20000 operations in 55.6723ms (359,245.08 ops/sec)
+
+### Fuz Testing Workload
+
+- 30% writes (347,734 ops/sec)
+
+### Takeaways
+
+Looking at the function call graph, the third party skiplist is now a huge bottleneck. Would benefit from implementing our own/ exploring other possible memtable data structures
