@@ -1,8 +1,23 @@
-# Baggins DB
 
-**BagginsDB** is a simple Cassandra inspired key-value store. While not production-ready, it serves as an educational project to explore low-level database internals, concurrency control, and performance tuning techniques.
-![DALL·E 2024-12-18 18 53 37 - A visually striking logo for a database called BagginsDB, inspired by a mystical and adventurous theme  The design features a stylized treasure ches](https://github.com/user-attachments/assets/39dcd398-9943-4eb9-8f21-8cfdfcb410ff)
+<p align="center">
+  <img  width="200" src="https://github.com/user-attachments/assets/3bb7c1cc-5c97-4755-aa12-dfa85bc91344" alt="Centered Image"/>
+  <h1 align="center">Baggins DB</h1>
+</p>
 
+<p align="center">
+  Baggins DB is a simple Cassandra-inspired key-value store. While not production-ready, it serves as an educational project to explore low-level database internals, concurrency control, and performance tuning techniques.
+</p>
+
+<p align="center">
+
+  <a href="https://github.com/flynnfc/BagginsDB/blob/main/LICENSE.md">
+    <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" title="MIT License" />
+  </a>
+  
+
+</p>
+
+---
 ## Features
 
 - **Memtable (In-Memory Index):**  
