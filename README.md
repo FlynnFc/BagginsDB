@@ -1,6 +1,7 @@
 # Baggins DB
 
 **BagginsDB** is a simple Cassandra inspired key-value store. While not production-ready, it serves as an educational project to explore low-level database internals, concurrency control, and performance tuning techniques.
+![DALL·E 2024-12-18 18 53 37 - A visually striking logo for a database called BagginsDB, inspired by a mystical and adventurous theme  The design features a stylized treasure ches](https://github.com/user-attachments/assets/39dcd398-9943-4eb9-8f21-8cfdfcb410ff)
 
 ## Features
 
