@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/penberg/limbo/actions">
+  <a href="https://github.com/flynnfc/bagginsdb/actions">
     <img src="https://github.com/flynnfc/bagginsdb/actions/workflows/build.yml/badge.svg" alt="Build badge">
   </a>
   <a href="https://github.com/flynnfc/BagginsDB/blob/main/LICENSE.md">
