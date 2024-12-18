@@ -46,7 +46,7 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 		memtable:       memtable,
 		sstManager:     sstManager,
 		clock:          clock,
-		flushThreshold: 1024 * 1024,
+		flushThreshold: 1024 * 10,
 	}
 }
 
@@ -69,7 +69,7 @@ func (d *Database) Put(key []byte, value interface{}) {
 		}
 		d.oldMemTable = nil
 
-		// if len(d.sstManager.sstables) > 10 { // arbitrary condition
+		// if len(d.sstManager.sstables) > 20 { // arbitrary condition
 		// 	if err := d.sstManager.Compact(); err != nil {
 		// 		d.logger.Error("Failed to compact SSTables", zap.Error(err))
 		// 	}

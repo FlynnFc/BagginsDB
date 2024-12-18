@@ -2,6 +2,7 @@ package database
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -99,6 +100,7 @@ func buildSSTable(filePath string, kvs []struct {
 	index := make([]entryMetadata, 0, len(kvs)/indexInterval+1)
 
 	for _, kv := range kvs {
+		// Get the offset *before* writing
 		offset, err := file.Seek(0, io.SeekCurrent)
 		if err != nil {
 			return nil, err
@@ -108,9 +110,13 @@ func buildSSTable(filePath string, kvs []struct {
 			return nil, err
 		}
 
+		// Flush the writer to ensure data is written to the file
+		if err := writer.Flush(); err != nil {
+			return nil, err
+		}
+
 		bf.Add(kv.Key)
 		index = append(index, entryMetadata{Key: kv.Key, FileOffset: offset})
-
 	}
 
 	if err := writer.Flush(); err != nil {
@@ -132,37 +138,58 @@ func (sst *ssTable) close() error {
 
 // get attempts to find a key in this sstable.
 func (sst *ssTable) get(key []byte) ([]byte, error) {
-	// Check bloom filter
-	// If bloom filter is disabled for debugging, skip this step.
+	// Check bloom filter (unchanged)
 	if sst.bloomFilter != nil && !sst.bloomFilter.Test(key) {
 		return nil, nil
 	}
 
-	// Seek to start of the file
-	if _, err := sst.file.Seek(0, io.SeekStart); err != nil {
+	// Binary search the index
+	i := binarySearch(sst.index, key)
+	if i < 0 {
+		// Key not found in the index
+		return nil, nil
+	}
+
+	// Seek to the offset in the index
+	offset := sst.index[i].FileOffset
+	if _, err := sst.file.Seek(offset, io.SeekStart); err != nil {
 		return nil, err
 	}
 
-	reader := bufio.NewReader(sst.file)
-	for {
-		rKey, rVal, _, err := sstReadEntry(reader)
-		if err == io.EOF {
-			// Reached end of file, key not found
-			break
-		}
-		if err != nil {
-			sst.logger.Error("failed to read entry", zap.Error(err))
-			return nil, err
-		}
-
-		// Compare keys
-		if string(rKey) == string(key) {
-			return rVal, nil
-		}
-		// Because the file is sorted, once we pass the key lexically, we could break
-		// But since this is a debug test, we'll read the entire file just to confirm
-		// it's truly not there. Remove the lexical break if you want to fully confirm.
+	// Read a single entry (assuming key is unique within the file)
+	rKey, rVal, _, err := sstReadEntry(sst.file)
+	if err != nil {
+		sst.logger.Error("failed to read entry", zap.Error(err))
+		return nil, err
 	}
 
-	return nil, nil
+	// Compare keys (unchanged)
+	if string(rKey) == string(key) {
+		return rVal, nil
+	}
+
+	// Key not found (shouldn't happen as bloom filter and index should prevent this)
+	return nil, errors.New("key not found (unexpected)")
+}
+
+// binarySearch implements a binary search on the index for the given key
+func binarySearch(index []entryMetadata, key []byte) int {
+	low := 0
+	high := len(index) - 1
+	for low <= high {
+		mid := (low + high) / 2
+		if compareKeys(key, index[mid].Key) < 0 {
+			high = mid - 1
+		} else if compareKeys(key, index[mid].Key) > 0 {
+			low = mid + 1
+		} else {
+			return mid // Key found
+		}
+	}
+	return -1 // Key not found
+}
+
+// compareKeys compares two byte slices lexicographically
+func compareKeys(a, b []byte) int {
+	return bytes.Compare(a, b)
 }
