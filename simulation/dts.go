@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	NumRecords   = 10000 // Example: 10k records for faster testing
+	NumRecords   = 1000000 // Example: 10k records for faster testing
 	KeyPrefix    = "key_"
 	ValuePrefix  = "value_"
 	NonExistKeys = 1000 // Number of keys that we know do not exist

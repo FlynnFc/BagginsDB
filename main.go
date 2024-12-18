@@ -6,23 +6,15 @@ import (
 	_ "net/http/pprof"
 	"time"
 
-	"github.com/flynnfc/bagginsdb/logger"
 	"github.com/flynnfc/bagginsdb/simulation"
-	"go.uber.org/zap"
 )
-
-var log *zap.Logger
-
-func init() {
-	log = logger.InitLogger("main")
-	log.Info("BAGGINSDB SPINNING UP")
-}
 
 func main() {
 	go func() {
 		// Start the pprof server on port 6060
 		fmt.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
+
 	simulation.Dts()
 	simulation.Load()
 
