@@ -1,6 +1,6 @@
 # Baggins DB
 
-**BagginsDB** is a simple key-value store inspired by Log-Structured Merge (LSM) tree designs commonly found in modern storage systems. It uses an in-memory memtable for fast writes, on-disk Sorted String Tables (SSTables) for persistence, and a Bloom filter to speed up lookups. While not production-ready, it serves as an educational project to explore low-level database internals, concurrency control, and performance tuning techniques.
+**BagginsDB** is a simple Cassandra inspired key-value store. While not production-ready, it serves as an educational project to explore low-level database internals, concurrency control, and performance tuning techniques.
 
 ## Features
 
