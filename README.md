@@ -9,7 +9,9 @@
 </p>
 
 <p align="center">
-
+  <a href="https://github.com/penberg/limbo/actions">
+    <img src="https://github.com/flynnfc/bagginsdb/actions/workflows/build.yml/badge.svg" alt="Build badge">
+  </a>
   <a href="https://github.com/flynnfc/BagginsDB/blob/main/LICENSE.md">
     <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" title="MIT License" />
   </a>
