@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"log"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -21,16 +22,29 @@ func InitLogger(n string) *zap.Logger {
 		Compress:   true,
 	})
 
-	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.TimeKey = "timestamp"
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	// Create a zap core that writes to lumberjack
+	writeSyncer := zapcore.AddSync(w)
+	encoderConfig := zapcore.EncoderConfig{
+		TimeKey:      "time",
+		LevelKey:     "level",
+		MessageKey:   "msg",
+		EncodeTime:   zapcore.ISO8601TimeEncoder,
+		EncodeLevel:  zapcore.CapitalLevelEncoder,
+		EncodeCaller: zapcore.ShortCallerEncoder,
+	}
 
 	core := zapcore.NewCore(
-		zapcore.NewJSONEncoder(encoderConfig),
-		w,
-		zap.InfoLevel,
+		zapcore.NewJSONEncoder(encoderConfig), // Use JSON for structured logging
+		writeSyncer,                           // Write logs to lumberjack
+		zapcore.DebugLevel,                    // Log level
 	)
 
 	logger := zap.New(core, zap.AddCaller())
+
+	// Redirect the standard log package to use zap
+	zapRedirect := logger.WithOptions(zap.AddCallerSkip(1)) // Skip one caller for correct log location
+	zap.RedirectStdLog(zapRedirect)
+	log.SetFlags(0) // Disable standard log timestamps (handled by zap)
+
 	return logger
 }
