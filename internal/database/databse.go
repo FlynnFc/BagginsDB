@@ -18,8 +18,7 @@ type Database struct {
 	oldMemTable *memtable
 	sstManager  *SSTableManager
 	clock       *truetime.TrueTime
-	mu          sync.Mutex
-
+	mu          sync.RWMutex
 	// You could store a threshold and intervals for compaction here if desired.
 	flushThreshold int
 }
@@ -38,6 +37,7 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 	sstManager, err := NewSSTableManager(dir, bloomSize, indexInterval, l)
 	if err != nil {
 		l.Fatal("Failed to create SSTableManager", zap.Error(err))
+		panic(err)
 	}
 
 	return &Database{
@@ -46,7 +46,7 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 		memtable:       memtable,
 		sstManager:     sstManager,
 		clock:          clock,
-		flushThreshold: 1000,
+		flushThreshold: 1024 * 1024,
 	}
 }
 
@@ -59,7 +59,6 @@ func (d *Database) Put(key []byte, value interface{}) {
 
 	// Check if we need to flush
 	if d.memtable.skiplist.Len() > d.flushThreshold {
-		d.logger.Info("Flushing memtable to SSTable")
 		d.oldMemTable = d.memtable
 		d.memtable = NewMemtable()
 
@@ -70,12 +69,10 @@ func (d *Database) Put(key []byte, value interface{}) {
 		}
 		d.oldMemTable = nil
 
-		// Optionally, we could trigger a compaction if we have too many SSTables.
-		// For example:
 		// if len(d.sstManager.sstables) > 10 { // arbitrary condition
-		//     if err := d.sstManager.Compact(); err != nil {
-		//         d.logger.Error("Failed to compact SSTables", zap.Error(err))
-		//     }
+		// 	if err := d.sstManager.Compact(); err != nil {
+		// 		d.logger.Error("Failed to compact SSTables", zap.Error(err))
+		// 	}
 		// }
 	}
 }

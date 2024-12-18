@@ -54,7 +54,7 @@ func (tt *TrueTime) Run() {
 	go func() {
 		for {
 			// Simulate checking the atomic clock API
-			atomicTime := time.Now().Add(500 * time.Millisecond) // Simulated atomic time
+			atomicTime := time.Now() // Simulated atomic time
 			// Calculate the difference between the atomic clock and the local clock
 			latency := 2 * time.Millisecond // Simulated latency
 			predictedTime := atomicTime.Add(-latency)

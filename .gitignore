@@ -1,4 +1,6 @@
 /target
 /learn
-/sst
+simulation/sst
+simulation/logs
 /logs
+/sst

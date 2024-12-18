@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/flynnfc/bagginsdb/internal/database"
 	"github.com/flynnfc/bagginsdb/logger"
+	"github.com/flynnfc/bagginsdb/simulation"
 	"go.uber.org/zap"
 )
 
@@ -14,15 +14,7 @@ func init() {
 }
 
 func main() {
-	db := database.NewDatabase(log, database.Config{Host: "localhost"})
+	// simulation.Dts()
+	simulation.Load()
 
-	db.Put([]byte("key"), []byte("CHEESE"))
-
-	value, ok := db.Get([]byte("key")).([]byte)
-	if !ok {
-		log.Error("Failed to convert value to []byte")
-		return
-	}
-
-	log.Info("Value", zap.String("value", string(value)))
 }
