@@ -14,7 +14,7 @@ func init() {
 }
 
 func main() {
-	// simulation.Dts()
+	simulation.Dts()
 	simulation.Load()
 
 }
