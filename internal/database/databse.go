@@ -46,7 +46,7 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 		memtable:       memtable,
 		sstManager:     sstManager,
 		clock:          clock,
-		flushThreshold: 1024 * 10,
+		flushThreshold: 1024 * 1024 * 5, // 5MB
 	}
 }
 
