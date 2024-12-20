@@ -25,7 +25,7 @@ _Each test runs 5 times and the final result is an average of the runs_
 
 Read performance is completely awful. Can implement sstable offset indexing + potentially Read/Write locks or lock free reads?
 
-## Version 0.2.0 - Improvement of ~350% overall
+## Version 0.1.1 - Improvement of ~350% overall
 
 The main change here is a more efficient compaction
 
@@ -45,7 +45,7 @@ The main change here is a more efficient compaction
 
 - 30% writes (200,836 ops/sec)
 
-## Version 0.3.0 - Improvement of ~127.53% overall
+## Version 0.1.2 - Improvement of ~125% overall
 
 Core changes here was putting compaction in a worker and increasing memtable size from 1kb to 1mb
 
@@ -67,4 +67,28 @@ Core changes here was putting compaction in a worker and increasing memtable siz
 
 ### Takeaways
 
-Looking at the function call graph, the third party skiplist is now a huge bottleneck. Would benefit from implementing our own/ exploring other possible memtable data structures
+Looking at the function call graph, the third party skiplist is now a huge bottleneck (pprof003) as well as my trueTime implementation. Would benefit from implementing our own/ exploring other possible memtable data structures
+
+## Version 0.1.3 - Improvement of ~70% overall
+
+Core changes here was putting compaction in a worker and increasing memtable size from 1kb to 1mb
+
+### Bulk Writes
+
+- No change
+
+### Bulk Reads
+
+- No change
+
+### Mixed Workload 20% writes
+
+- No change
+
+### Fuz Testing Workload
+
+- 30% writes (594,131 ops/sec)
+
+### Takeaways
+
+After implementing my own thread safe skiplist we got a large improvement for simulation and fuz testing. No meaningful change on bulk operations. But this could be hidden by the fact there is more locking happening now.

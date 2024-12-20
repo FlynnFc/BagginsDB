@@ -42,8 +42,8 @@ func (mgr *SSTableManager) FlushMemtable(mem *memtable) error {
 		Val Value
 	}
 	for node := mem.skiplist.Front(); node != nil; node = node.Next() {
-		k := node.Key().([]byte)
-		v := node.Value.(Value)
+		k := node.key
+		v := node.value
 		kvs = append(kvs, struct {
 			Key []byte
 			Val Value

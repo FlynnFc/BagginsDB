@@ -5,6 +5,7 @@ go 1.21.0
 require (
 	github.com/beevik/ntp v1.4.3 // indirect
 	github.com/huandu/skiplist v1.2.1 // indirect
+	github.com/sean-public/fast-skiplist v0.0.0-20200308194023-d7f7945b944e // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/willf/bitset v1.1.11 // indirect
 	github.com/willf/bloom v2.0.3+incompatible // indirect

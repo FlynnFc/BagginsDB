@@ -51,7 +51,7 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 		sstManager:        sstManager,
 		clock:             clock,
 		compactionTrigger: make(chan struct{}, 1),
-		flushThreshold:    1024 * 1024 * 5, // 5MB
+		flushThreshold:    1024 * 100, // 100KB
 	}
 	db.startCompactionWorker()
 	return db

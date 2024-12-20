@@ -128,7 +128,7 @@ func bulkRetrieveNonExistent(db *database.Database, numNonExist, workers int) er
 		for index := range recordCh {
 			nonExistKey := generateKey(index + 1000000) // Offset to ensure non-existence
 			val := db.Get(nonExistKey)
-			if val == nil {
+			if string(val.([]byte)) == "" {
 				atomic.AddInt64(&notFoundCount, 1)
 			} else {
 				atomic.AddInt64(&foundCount, 1)

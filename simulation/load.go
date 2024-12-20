@@ -196,7 +196,7 @@ func Load() {
 		ReadRatio:     70,      // 70% reads, 30% writes
 		KeySpaceSize:  1000000, // 1 million keys
 		MaxValueSize:  1024,    // up to 1KB
-		Workers:       200,     // concurrency level
+		Workers:       500,     // concurrency level
 		RoundInterval: 5 * time.Second,
 	}
 
