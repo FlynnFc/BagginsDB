@@ -54,15 +54,12 @@ func (tt *TrueTime) Run() {
 	go func() {
 		for {
 			// Simulate checking the atomic clock API
-			atomicTime := time.Now() // Simulated atomic time
+			atomicTime, latency := getTime() // Simulated atomic time
 			// Calculate the difference between the atomic clock and the local clock
-			latency := 2 * time.Millisecond // Simulated latency
 			predictedTime := atomicTime.Add(-latency)
 			newTime := time.Now()
 			tt.uncertainty = newTime.Sub(predictedTime)
-			if tt.uncertainty.Abs() > 10*time.Millisecond {
-				tt.logger.Warn("Clock is out of the acceptable sync range", zap.Duration("Clock is out of sync by (ms)", tt.uncertainty))
-			}
+
 			// Adjust the local clock
 			tt.mu.Lock()
 			tt.time.Earliest = newTime.Add(-tt.uncertainty)
@@ -72,7 +69,13 @@ func (tt *TrueTime) Run() {
 				tt.initialized = true
 			}
 			// Sync system clock to atomic clock
-
+			if tt.uncertainty.Abs() > 10*time.Millisecond {
+				tt.logger.Warn("Clock is out of the acceptable sync range", zap.Duration("Clock is out of sync by (ms)", tt.uncertainty))
+				err := setSystemTime(atomicTime)
+				if err != nil {
+					tt.logger.Error("Failed to adjust system clock", zap.Error(err))
+				}
+			}
 			// Log the adjustment
 			tt.logger.Info("Adjusted local clock", zap.Duration("Clock was out of sync by (ms)", tt.uncertainty))
 

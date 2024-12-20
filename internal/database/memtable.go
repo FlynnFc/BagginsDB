@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/flynnfc/bagginsdb/internal/truetime"
-	"github.com/huandu/skiplist"
 )
 
 // Value represents a value in the memtable with a timestamp.
@@ -15,13 +14,13 @@ type Value struct {
 
 // memtable represents an in-memory table for an LSM tree.
 type memtable struct {
-	skiplist *skiplist.SkipList
+	skiplist *SkipList
 	mu       sync.RWMutex
 }
 
 // NewMemtable creates a new memtable.
 func NewMemtable() *memtable {
-	list := skiplist.New(skiplist.Bytes)
+	list := NewSkipList()
 	return &memtable{skiplist: list}
 }
 
@@ -29,6 +28,7 @@ func NewMemtable() *memtable {
 func (m *memtable) Put(key []byte, value []byte, ts truetime.Timestamp) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.skiplist.Set(key, Value{Data: value, Timestamp: ts})
 }
 
@@ -37,10 +37,8 @@ func (m *memtable) Get(key []byte) []byte {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	node := m.skiplist.Get(key)
-	if node == nil {
-		return nil
-	}
-	return node.Value.(Value).Data
+
+	return node.Data
 }
 
 // Delete marks a key as deleted in the memtable.
