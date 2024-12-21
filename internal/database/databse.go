@@ -71,11 +71,15 @@ func (d *Database) Put(key []byte, value interface{}) {
 		d.oldMemTable = d.memtable
 		d.memtable = NewMemtable()
 
-		select {
-		case d.flushTrigger <- struct{}{}: // Signal compaction worker
-		default:
-			// Avoid blocking if the compaction worker is already notified
-		}
+		go func(oldMemTable *memtable) {
+			d.flushMu.Lock()
+			if err := d.sstManager.FlushMemtable(oldMemTable); err != nil {
+				d.logger.Error("Failed to write memtable to SSTable", zap.Error(err))
+			}
+			d.flushMu.Unlock()
+		}(d.oldMemTable)
+
+		d.oldMemTable = nil
 
 		// Notify background compaction if needed
 		if len(d.sstManager.sstables) > 10 { // arbitrary condition
@@ -99,19 +103,6 @@ func (d *Database) startCompactionWorker() {
 			d.compactionMu.Unlock()
 		}
 	}()
-}
-
-// Background compaction worker
-func (d *Database) startFlushWorker() {
-	// Flush old memtable into an SSTable via the manager
-	go func(oldMemTable *memtable) {
-		d.flushMu.Lock()
-		if err := d.sstManager.FlushMemtable(oldMemTable); err != nil {
-			d.logger.Error("Failed to write memtable to SSTable", zap.Error(err))
-		}
-		d.flushMu.Unlock()
-	}(d.oldMemTable)
-	d.oldMemTable = nil
 }
 
 func (d *Database) Get(key interface{}) interface{} {
