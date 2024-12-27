@@ -9,35 +9,43 @@ service Database {
   rpc HeartBeat(HeartBeatRequest) returns (HeartBeatResponse) {}
 }
 
+
 message GetRequest {
-  string Key = 1;
+  string partition_key = 1;
+  repeated string clustering_keys = 2;
+  string column_name = 3;
 }
 
 message GetResponse {
-  string Value = 1;
+  string value = 1;
 }
 
 message SetRequest {
-  string Key = 1;
-  string Value = 2;
+  string partition_key = 1;
+  repeated string clustering_keys = 2;
+  string column_name = 3;
+  string value = 4;
 }
 
 message SetResponse {
-  bool Success = 1;
+  bool success = 1;
 }
 
+
 message DeleteRequest {
-  string Key = 1;
+  string partition_key = 1;
 }
 
 message DeleteResponse {
-  bool Success = 1;
+  bool success = 1;
 }
 
 message HeartBeatRequest {
-  string NodeId = 1;
+  string nodeId = 1;
 }
 
 message HeartBeatResponse {
-  bool Success = 1;
+  bool success = 1;
 }
+
+

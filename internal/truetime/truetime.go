@@ -26,26 +26,14 @@ type TrueTime struct {
 func NewTrueTime(logger *zap.Logger) *TrueTime {
 	tt := &TrueTime{
 		logger:      logger,
-		initialized: false,
+		initialized: true,
 	}
 	return tt
 }
 
 // Now returns the current time along with uncertainty bounds.
 func (tt *TrueTime) Now() Timestamp {
-	tt.mu.RLock()
-	for !tt.initialized {
-		tt.mu.RUnlock()
-		time.Sleep(5 * time.Millisecond)
-		tt.mu.RLock()
-	}
-	tt.mu.RUnlock()
-
-	tt.mu.RLock()
-	defer tt.mu.RUnlock()
-
-	return tt.time
-
+	return Timestamp{Earliest: time.Now(), Latest: time.Now()}
 }
 
 // Run is a method that adjusts the local clock based on the atomic clock api

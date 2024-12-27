@@ -24,7 +24,7 @@ func main() {
 		// Start the pprof server on port 6060
 		fmt.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
-	simulation.Dts()
+	// simulation.Dts()
 	simulation.Load()
 
 	// Initialize logger

@@ -1,28 +1,28 @@
 package database
 
 import (
+	"bufio"
+	"bytes"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"sync"
-	"time"
 
-	"github.com/flynnfc/bagginsdb/internal/truetime"
 	"go.uber.org/zap"
 )
 
-// SSTableManager manages multiple SSTables, supports compactions.
+// SSTableManager manages multiple SSTables (for compaction, etc.).
 type SSTableManager struct {
 	mu            sync.RWMutex
 	logger        *zap.Logger
 	directory     string
-	sstables      []*ssTable
+	sstables      []*SSTable
 	bloomSize     uint
 	indexInterval int
 }
 
-// NewSSTableManager creates a new manager to handle SSTables.
+// NewSSTableManager creates a new manager.
 func NewSSTableManager(dir string, bloomSize uint, indexInterval int, logger *zap.Logger) (*SSTableManager, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
@@ -35,34 +35,25 @@ func NewSSTableManager(dir string, bloomSize uint, indexInterval int, logger *za
 	}, nil
 }
 
-// FlushMemtable creates a new SSTable from the memtable and adds it to the manager.
-func (mgr *SSTableManager) FlushMemtable(mem *memtable) error {
-	var kvs []struct {
-		Key []byte
-		Val Value
-	}
-	for node := mem.skiplist.Front(); node != nil; node = node.Next() {
-		k := node.key
-		v := node.value
-		kvs = append(kvs, struct {
-			Key []byte
-			Val Value
-		}{Key: k, Val: v})
-	}
-
-	sort.Slice(kvs, func(i, j int) bool {
-		return string(kvs[i].Key) < string(kvs[j].Key)
+// FlushMemtable would convert a  “memtable” (not shown) into an SSTable on disk.
+// For demonstration, assume we have a slice of ColumnEntry that’s already sorted.
+func (mgr *SSTableManager) FlushMemtable(entries []ColumnEntry) error {
+	// Sort the entries by composite ordering (partitionKey, clusteringKeys, columnName).
+	sort.Slice(entries, func(i, j int) bool {
+		cmpI := compositeKey(entries[i].PartitionKey, entries[i].ClusteringKeys, entries[i].ColumnName)
+		cmpJ := compositeKey(entries[j].PartitionKey, entries[j].ClusteringKeys, entries[j].ColumnName)
+		return bytes.Compare(cmpI, cmpJ) < 0
 	})
 
-	// Create a unique file name
-	f, err := os.CreateTemp(mgr.directory, "sstable_")
+	// Create a unique file
+	f, err := os.CreateTemp(mgr.directory, "wsstable_")
 	if err != nil {
 		return err
 	}
 	fName := f.Name()
-	f.Close()
+	_ = f.Close()
 
-	sst, err := buildSSTable(fName, kvs, mgr.bloomSize, mgr.indexInterval, mgr.logger)
+	sst, err := buildSSTable(fName, entries, mgr.bloomSize, mgr.indexInterval, mgr.logger)
 	if err != nil {
 		return err
 	}
@@ -73,12 +64,14 @@ func (mgr *SSTableManager) FlushMemtable(mem *memtable) error {
 	return nil
 }
 
-// Get finds the value for a key by checking SSTables in reverse order (newest first).
-func (mgr *SSTableManager) Get(key []byte) ([]byte, error) {
+// Get retrieves a single “cell” identified by (partitionKey, clusteringKeys, columnName)
+// checking from newest table first, similar to your original code.
+func (mgr *SSTableManager) Get(partKey []byte, clustering [][]byte, colName []byte) ([]byte, error) {
 	mgr.mu.RLock()
 	defer mgr.mu.RUnlock()
+
 	for i := len(mgr.sstables) - 1; i >= 0; i-- {
-		val, err := mgr.sstables[i].get(key)
+		val, err := mgr.sstables[i].get(partKey, clustering, colName)
 		if err != nil {
 			return nil, err
 		}
@@ -89,7 +82,7 @@ func (mgr *SSTableManager) Get(key []byte) ([]byte, error) {
 	return nil, nil
 }
 
-// Compact merges all sstables into a single SSTable, deduplicating keys.
+// Compact merges all sstables into a single one, deduplicating by (partitionKey, clustering, columnName).
 func (mgr *SSTableManager) Compact() error {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
@@ -98,110 +91,99 @@ func (mgr *SSTableManager) Compact() error {
 		return nil
 	}
 
-	// Read all entries
-	var allEntries []struct {
-		Key []byte
-		Val Value
-	}
-
+	// read all entries from all sstables
+	var all []ColumnEntry
 	for _, sst := range mgr.sstables {
-		if _, err := sst.file.Seek(0, 0); err != nil {
+		if _, err := sst.file.Seek(0, io.SeekStart); err != nil {
 			return err
 		}
-		reader := sst.file
+		reader := bufio.NewReader(sst.file)
 		for {
-			key, val, ts, err := sstReadEntry(reader)
+			entry, err := sstReadEntry(reader)
 			if err == io.EOF {
 				break
 			}
 			if err != nil {
 				return err
 			}
-			allEntries = append(allEntries, struct {
-				Key []byte
-				Val Value
-			}{
-				Key: key,
-				Val: Value{Data: val, Timestamp: truetime.Timestamp{Latest: time.Unix(0, ts)}},
-			})
+			all = append(all, entry)
 		}
 	}
 
-	// Sort and deduplicate
-	sort.Slice(allEntries, func(i, j int) bool {
-		return string(allEntries[i].Key) < string(allEntries[j].Key)
+	// sort by composite key
+	sort.Slice(all, func(i, j int) bool {
+		cmpI := compositeKey(all[i].PartitionKey, all[i].ClusteringKeys, all[i].ColumnName)
+		cmpJ := compositeKey(all[j].PartitionKey, all[j].ClusteringKeys, all[j].ColumnName)
+		return bytes.Compare(cmpI, cmpJ) < 0
 	})
 
-	deduped := deduplicateEntries(allEntries)
+	// deduplicate (keep the latest by timestamp)
+	merged := deduplicateEntries(all)
 
-	// Create compacted SSTable
-	fName := filepath.Join(mgr.directory, "sstable_compacted")
-	sst, err := buildSSTable(fName, deduped, mgr.bloomSize, mgr.indexInterval, mgr.logger)
+	// create a new compacted table
+	compPath := filepath.Join(mgr.directory, "wsstable_compacted")
+	newSST, err := buildSSTable(compPath, merged, mgr.bloomSize, mgr.indexInterval, mgr.logger)
 	if err != nil {
 		return err
 	}
 
-	// Close and remove old
+	// close & remove old
 	for _, old := range mgr.sstables {
 		old.close()
 		os.Remove(old.file.Name())
 	}
 
-	mgr.sstables = []*ssTable{sst}
+	mgr.sstables = []*SSTable{newSST}
 	return nil
 }
 
-// deduplicateEntries keeps only the latest value for each key
-func deduplicateEntries(entries []struct {
-	Key []byte
-	Val Value
-}) []struct {
-	Key []byte
-	Val Value
-} {
+// deduplicateEntries merges entries that share the same (partitionKey, clusteringKeys, columnName),
+// keeping only the one with the newest Timestamp.
+func deduplicateEntries(entries []ColumnEntry) []ColumnEntry {
 	if len(entries) == 0 {
 		return entries
 	}
-	result := make([]struct {
-		Key []byte
-		Val Value
-	}, 0, len(entries))
 
-	lastKey := entries[0].Key
-	lastVal := entries[0].Val
+	result := make([]ColumnEntry, 0, len(entries))
+	last := entries[0]
+
 	for i := 1; i < len(entries); i++ {
-		if string(entries[i].Key) != string(lastKey) {
-			// different key, append previous
-			result = append(result, struct {
-				Key []byte
-				Val Value
-			}{Key: lastKey, Val: lastVal})
-			lastKey = entries[i].Key
-			lastVal = entries[i].Val
+		if sameCompositeKey(last, entries[i]) {
+			// same “cell,” keep the newer timestamp
+			if entries[i].Timestamp.Latest.After(last.Timestamp.Latest) {
+				last = entries[i]
+			}
 		} else {
-			// same key, choose the one with the latest timestamp
-			// assuming entries are from oldest to newest sst, the last occurrence is the newest
-			lastVal = entries[i].Val
+			// different key => push previous
+			result = append(result, last)
+			last = entries[i]
 		}
 	}
-	// append the last
-	result = append(result, struct {
-		Key []byte
-		Val Value
-	}{Key: lastKey, Val: lastVal})
-
+	// push final
+	result = append(result, last)
 	return result
 }
 
-func loadSSTables(dir string, logger *zap.Logger) ([]*ssTable, error) {
-	_, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
+func sameCompositeKey(a, b ColumnEntry) bool {
+	// Compare partitionKey, then length of clusteringKeys, each clusteringKey, then columnName
+	if !bytes.Equal(a.PartitionKey, b.PartitionKey) {
+		return false
 	}
-
-	return nil, nil
+	if len(a.ClusteringKeys) != len(b.ClusteringKeys) {
+		return false
+	}
+	for i := 0; i < len(a.ClusteringKeys); i++ {
+		if !bytes.Equal(a.ClusteringKeys[i], b.ClusteringKeys[i]) {
+			return false
+		}
+	}
+	if !bytes.Equal(a.ColumnName, b.ColumnName) {
+		return false
+	}
+	return true
 }
 
+// Close closes all open sstables
 func (mgr *SSTableManager) Close() error {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
