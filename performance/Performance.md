@@ -97,7 +97,7 @@ After implementing my own thread safe skiplist we got a large improvement for si
 
 ## Version 0.2.0
 
-Pivoted from key-value store to wide column store. Improved locking granularity.
+Pivoted from key-value store to wide column store. Improved locking granularity. Improved skiplist.
 
 ### Bulk Writes
 
@@ -106,6 +106,10 @@ Pivoted from key-value store to wide column store. Improved locking granularity.
 ### Bulk Reads
 
 - 1,000,000 operations in 522.8734ms (1,912,508.84 ops/sec)
+
+### Non-existent Keys Retrieval
+
+- 1,000 operations in 999.6µs (1,000,400.16 ops/sec)
 
 ### Mixed Workload 20% writes
 
@@ -118,4 +122,3 @@ Pivoted from key-value store to wide column store. Improved locking granularity.
 ### Takeaways
 
 Getting slowly better at managing locks and file read/writes. Bulk reads have gotten quick but unrealistic in prod environments!
-
