@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  Baggins DB is a simple Cassandra-inspired key-value store. While not production-ready, it serves as an educational project to explore low-level database internals, concurrency control, and performance tuning techniques.
+  Baggins DB is a simple Cassandra-inspired wide-column db. While not production-ready, it serves as an educational project to explore low-level database internals, concurrency control, and performance-tuning techniques.
 </p>
 
 <p align="center">
@@ -59,19 +59,6 @@
 
 The database uses Go’s concurrency features. The `Database` struct employs a `sync.RWMutex` to allow concurrent reads and exclusive writes. However, the underlying SSTable code may require additional improvements, particularly around disk I/O operations.
 
-## Troubleshooting
-
-- **Invalid Key Length Errors:**  
-  Typically caused by concurrent reads stepping on each other’s file position. Ensure proper synchronization around SSTable file access.
-
-- **High Lock Contention:**  
-  If `Get` operations block due to a locked `Put` or vice versa, consider using more fine-grained locking or `RWMutex` to allow multiple readers simultaneously.
-
-- **Performance Tuning:**
-  - Adjust the Bloom filter size to reduce false positives.
-  - Tune the index interval in SSTables.
-  - Increase memtable flush thresholds if you have enough memory.
-
 ## Roadmap
 
 - Add delete support (tombstones).
@@ -84,6 +71,3 @@ The database uses Go’s concurrency features. The `Database` struct employs a `
 
 This project is distributed under the MIT License. See `LICENSE` for details.
 
----
-
-This README provides an overview, setup instructions, guidance on using and testing the database, as well as insights into its internal design and areas for future improvement. You can modify the specifics to match your actual codebase and project goals.

@@ -25,7 +25,7 @@ _ops/sec are on a single node unless specified otherwise_
 
 ### Takeaways
 
-Read performance is completely awful. Can implement sstable offset indexing + potentially Read/Write locks or lock free reads?
+The read performance is completely awful. Can implement sstable offset indexing + potentially Read/Write locks or lock-free reads?
 
 ## Version 0.1.1
 
@@ -49,7 +49,7 @@ The main change here is a more efficient compaction
 
 ## Version 0.1.2
 
-Core changes here was putting compaction in a worker and increasing memtable size from 1kb to 1mb
+Core changes here were putting compaction in a worker and increasing memtable size from 1kb to 1mb
 
 ### Bulk Writes
 
@@ -69,11 +69,11 @@ Core changes here was putting compaction in a worker and increasing memtable siz
 
 ### Takeaways
 
-Looking at the function call graph, the third party skiplist is now a huge bottleneck (pprof003) as well as my trueTime implementation. Would benefit from implementing our own/ exploring other possible memtable data structures
+Looking at the function call graph, the third-party skiplist is now a huge bottleneck (pprof003) as well as my trueTime implementation. Would benefit from implementing our own/ exploring other possible memtable data structures
 
 ## Version 0.1.3
 
-Core changes here was putting compaction in a worker and increasing memtable size from 1kb to 1mb
+Core changes here were optimising compaction and the bloom filter as well as increasing memtable size from 1kb to 1mb
 
 ### Bulk Writes
 
@@ -118,3 +118,4 @@ Pivoted from key-value store to wide column store. Improved locking granularity.
 ### Takeaways
 
 Getting slowly better at managing locks and file read/writes. Bulk reads have gotten quick but unrealistic in prod environments!
+
