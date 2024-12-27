@@ -22,9 +22,6 @@ func NewDatabaseServer(l *zap.Logger, c database.Config) *Server {
 }
 
 /*
-----------------------------------------------------------------------------
-GET
-----------------------------------------------------------------------------
 Expects a GetRequest with:
   - partition_key
   - repeated clustering_keys
@@ -57,9 +54,6 @@ func (srv *Server) Get(ctx context.Context, req *protos.GetRequest) (*protos.Get
 }
 
 /*
-----------------------------------------------------------------------------
-SET
-----------------------------------------------------------------------------
 Expects a SetRequest with:
   - partition_key
   - repeated clustering_keys
