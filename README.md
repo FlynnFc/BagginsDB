@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  Baggins DB is a simple Cassandra-inspired key-value store. While not production-ready, it serves as an educational project to explore low-level database internals, concurrency control, and performance tuning techniques.
+  Baggins DB is a simple Cassandra-inspired wide-column db. While not production-ready, it serves as an educational project to explore low-level database internals, concurrency control, and performance-tuning techniques.
 </p>
 
 <p align="center">
