@@ -23,7 +23,7 @@ _Each test runs 5 times and the final result is an average of the runs_
 
 ### Takeaways
 
-Read performance is completely awful. Can implement sstable offset indexing + potentially Read/Write locks or lock free reads?
+The read performance is completely awful. Can implement sstable offset indexing + potentially Read/Write locks or lock-free reads?
 
 ## Version 0.1.1 - Improvement of ~350% overall
 
@@ -47,7 +47,7 @@ The main change here is a more efficient compaction
 
 ## Version 0.1.2 - Improvement of ~125% overall
 
-Core changes here was putting compaction in a worker and increasing memtable size from 1kb to 1mb
+Core changes here were putting compaction in a worker and increasing memtable size from 1kb to 1mb
 
 ### Bulk Writes
 
@@ -67,11 +67,11 @@ Core changes here was putting compaction in a worker and increasing memtable siz
 
 ### Takeaways
 
-Looking at the function call graph, the third party skiplist is now a huge bottleneck (pprof003) as well as my trueTime implementation. Would benefit from implementing our own/ exploring other possible memtable data structures
+Looking at the function call graph, the third-party skiplist is now a huge bottleneck (pprof003) as well as my trueTime implementation. Would benefit from implementing our own/ exploring other possible memtable data structures
 
 ## Version 0.1.3 - Improvement of ~70% overall
 
-Core changes here was putting compaction in a worker and increasing memtable size from 1kb to 1mb
+Core changes here were optimising compaction and the bloom filter as well as increasing memtable size from 1kb to 1mb
 
 ### Bulk Writes
 
@@ -91,4 +91,4 @@ Core changes here was putting compaction in a worker and increasing memtable siz
 
 ### Takeaways
 
-After implementing my own thread safe skiplist we got a large improvement for simulation and fuz testing. No meaningful change on bulk operations. But this could be hidden by the fact there is more locking happening now.
+After implementing my own thread-safe skiplist we got a large improvement for simulation and fuzz testing. No meaningful change in bulk operations. But this could be hidden by the fact there is more locking happening now.
