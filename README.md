@@ -55,6 +55,8 @@
 - `logger/`  
   A simple logging wrapper configured to produce structured logs via `zap`.
 
+## Performance tuning and improvements
+I'm opting to tracking and logging performance. You can find saved graphs, and performance notes in the [Performance](performance) folder
 ## Concurrency and Locking
 
 The database uses Go’s concurrency features. The `Database` struct employs a `sync.RWMutex` to allow concurrent reads and exclusive writes. However, the underlying SSTable code may require additional improvements, particularly around disk I/O operations.
