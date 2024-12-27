@@ -10,14 +10,14 @@ import (
 
 // Server implements the Database gRPC interface.
 type Server struct {
-	db *database.Database
+	DB *database.Database
 	protos.UnimplementedDatabaseServer
 }
 
 // NewDatabaseServer creates a new Server with a wide-column Database.
 func NewDatabaseServer(l *zap.Logger, c database.Config) *Server {
 	return &Server{
-		db: database.NewDatabase(l, c),
+		DB: database.NewDatabase(l, c),
 	}
 }
 
@@ -41,7 +41,7 @@ func (srv *Server) Get(ctx context.Context, req *protos.GetRequest) (*protos.Get
 	col := []byte(req.ColumnName)
 
 	// Retrieve from DB
-	val := srv.db.Get(pk, cks, col)
+	val := srv.DB.Get(pk, cks, col)
 	if val == nil {
 		// Return an empty string or some default
 		return &protos.GetResponse{
@@ -72,7 +72,7 @@ func (srv *Server) Set(ctx context.Context, req *protos.SetRequest) (*protos.Set
 	val := []byte(req.Value)
 
 	// Insert into the wide-column DB
-	srv.db.Put(pk, cks, col, val)
+	srv.DB.Put(pk, cks, col, val)
 
 	return &protos.SetResponse{Success: true}, nil
 }

@@ -204,7 +204,7 @@ func openSSTable(filePath string, logger *zap.Logger) (*SSTable, error) {
 	if err != nil {
 		return nil, err
 	}
-	bf, err := ReadBloomFilter("sst/" + "bloom_" + baseIden)
+	bf, err := readBloomFilter("sst/" + "bloom_" + baseIden)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +297,6 @@ func writeSSTableIndex(filePath string, idx []EntryMetadata) error {
 	defer writer.Flush()
 
 	for _, entry := range idx {
-		// Write the PartitionKey
 		if err := binary.Write(writer, binary.BigEndian, int32(len(entry.PartitionKey))); err != nil {
 			return fmt.Errorf("failed to write partition key length: %w", err)
 		}
@@ -305,7 +304,6 @@ func writeSSTableIndex(filePath string, idx []EntryMetadata) error {
 			return fmt.Errorf("failed to write partition key: %w", err)
 		}
 
-		// Write the ClusteringKeys
 		if err := binary.Write(writer, binary.BigEndian, int32(len(entry.ClusteringKeys))); err != nil {
 			return fmt.Errorf("failed to write number of clustering keys: %w", err)
 		}
@@ -318,7 +316,6 @@ func writeSSTableIndex(filePath string, idx []EntryMetadata) error {
 			}
 		}
 
-		// Write the ColumnName
 		if err := binary.Write(writer, binary.BigEndian, int32(len(entry.ColumnName))); err != nil {
 			return fmt.Errorf("failed to write column name length: %w", err)
 		}
@@ -326,7 +323,6 @@ func writeSSTableIndex(filePath string, idx []EntryMetadata) error {
 			return fmt.Errorf("failed to write column name: %w", err)
 		}
 
-		// Write the FileOffset
 		if err := binary.Write(writer, binary.BigEndian, entry.FileOffset); err != nil {
 			return fmt.Errorf("failed to write file offset: %w", err)
 		}
@@ -335,9 +331,7 @@ func writeSSTableIndex(filePath string, idx []EntryMetadata) error {
 	return nil
 }
 
-// WriteBloomFilter writes a bloom filter to a file with the given name
-func WriteBloomFilter(filter *bloom.BloomFilter, fileName string) error {
-	// Create or overwrite the file
+func writeBloomFilter(filter *bloom.BloomFilter, fileName string) error {
 	file, err := os.Create("sst/" + fileName)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
@@ -360,8 +354,7 @@ func WriteBloomFilter(filter *bloom.BloomFilter, fileName string) error {
 	return nil
 }
 
-// ReadBloomFilter reads a bloom filter from a file with the given name
-func ReadBloomFilter(fileName string) (*bloom.BloomFilter, error) {
+func readBloomFilter(fileName string) (*bloom.BloomFilter, error) {
 	// Open the file
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -369,7 +362,6 @@ func ReadBloomFilter(fileName string) (*bloom.BloomFilter, error) {
 	}
 	defer file.Close()
 
-	// Read the file content into a byte buffer
 	info, err := file.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file info: %w", err)
@@ -379,7 +371,6 @@ func ReadBloomFilter(fileName string) (*bloom.BloomFilter, error) {
 		return nil, fmt.Errorf("failed to read file content: %w", err)
 	}
 
-	// Deserialize the bloom filter from the buffer
 	filter := bloom.New(1, 1) // Create an empty filter to populate
 	if err := filter.UnmarshalBinary(buffer); err != nil {
 		return nil, fmt.Errorf("failed to read bloom filter from buffer: %w", err)
@@ -448,7 +439,7 @@ func sameCompositeKey(a, b ColumnEntry) bool {
 	return bytes.Equal(a.ColumnName, b.ColumnName)
 }
 
-// Close closes all open sstables
+// Close all open sstables
 func (mgr *SSTableManager) Close() error {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()

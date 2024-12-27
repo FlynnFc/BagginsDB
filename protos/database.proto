@@ -33,6 +33,8 @@ message SetResponse {
 
 message DeleteRequest {
   string partition_key = 1;
+  repeated string clustering_keys = 2;
+  string column_name = 3;
 }
 
 message DeleteResponse {

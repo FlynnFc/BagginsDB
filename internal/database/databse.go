@@ -158,7 +158,7 @@ func (db *Database) Close() {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// 1. Flush current memtable
+	// Flush current memtable
 	if db.memtable != nil {
 		Entries := db.memtable.ToColumnEntries()
 		if err := db.sstManager.FlushMemtable(Entries); err != nil {
@@ -167,7 +167,7 @@ func (db *Database) Close() {
 		db.memtable = nil
 	}
 
-	// 2. Clean up old memtable if it exists
+	// Clean up old memtable if it exists
 	if db.oldMemtable != nil {
 		Entries := db.oldMemtable.ToColumnEntries()
 		if err := db.sstManager.FlushMemtable(Entries); err != nil {
@@ -176,7 +176,7 @@ func (db *Database) Close() {
 		db.oldMemtable = nil
 	}
 
-	// 3. Close the manager
+	// Close the manager
 	if err := db.sstManager.Close(); err != nil {
 		db.logger.Error("Failed to close SSTableManager", zap.Error(err))
 	}

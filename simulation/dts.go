@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/flynnfc/bagginsdb/internal/database" // Adjust import path as necessary
-	"github.com/flynnfc/bagginsdb/internal/truetime"
 	"github.com/flynnfc/bagginsdb/logger"
 )
 
@@ -246,8 +245,6 @@ func Dts() {
 		Host: "localhost",
 		// other fields if needed
 	}
-	mockClock := truetime.NewTrueTime(logger)
-	mockClock.Run()
 
 	db := database.NewDatabase(logger, config)
 	defer db.Close()

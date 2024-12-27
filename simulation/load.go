@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/flynnfc/bagginsdb/internal/database" // Adjust import as needed
-	"github.com/flynnfc/bagginsdb/internal/truetime"
 	"github.com/flynnfc/bagginsdb/logger"
 	"go.uber.org/zap"
 )
@@ -182,9 +181,6 @@ func Load() {
 	// Initialize logger, TrueTime, and DB
 	seed := time.Now().Format("2006-01-02-15-04-05")
 	logger := logger.InitLogger(seed + "-realistic")
-
-	mockClock := truetime.NewTrueTime(logger)
-	mockClock.Run()
 
 	// Adjust as needed for your new wide DB config
 	config := database.Config{Host: "localhost"}

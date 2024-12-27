@@ -182,7 +182,7 @@ func buildSSTable(filePath string, entries []ColumnEntry, bloomSize uint, indexI
 	}
 	// Do these AFTER actually flushing the important data. These can be generated from the data if failed and needed :)
 	baseIden := ExtractIdentifier(filePath)
-	if err := WriteBloomFilter(bf, "bloom_"+baseIden); err != nil {
+	if err := writeBloomFilter(bf, "bloom_"+baseIden); err != nil {
 		return nil, err
 	}
 
@@ -287,7 +287,7 @@ func BinarySearch(index []EntryMetadata, pk []byte, clustering [][]byte, colName
 // compositeKey creates a single byte slice combining partitionKey, clusteringKeys, and columnName
 // so that lexicographic ordering respects the -column ordering.
 func compositeKey(partKey []byte, clustering [][]byte, colName []byte) []byte {
-	// You can implement a more elaborate scheme. Here, we simply do:
+	// Here, we simply do:
 	// partitionKey + 0x00 + each cluster + 0x01 ... + colName + 0x02
 	// so that we can do a lex-based comparison.
 	var buf bytes.Buffer
