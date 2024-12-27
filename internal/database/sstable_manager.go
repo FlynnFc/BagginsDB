@@ -40,11 +40,10 @@ func NewSSTableManager(dir string, bloomSize uint, indexInterval int, logger *za
 		indexInterval: indexInterval,
 	}
 
-	if err := mgr.LoadSStables(); err != nil {
-		fmt.Println("Failed to load sstables:", err.Error())
-	} else {
-		fmt.Println("Loaded", len(mgr.sstables), "sstables")
-	}
+	// TODO: Issue with loading index and bloom. Actually want this at the top of the sstable file.
+	// if err := mgr.LoadSStables(); err != nil {
+	// 	return mgr, err
+	// }
 
 	return mgr, nil
 }
@@ -181,7 +180,6 @@ func (mgr *SSTableManager) LoadSStables() error {
 
 func ExtractIdentifier(sstPath string) string {
 	// Split the string by "/"
-	fmt.Println("Extracting identifier from", sstPath)
 	parts := strings.Split(sstPath, "\\")
 	if len(parts) < 2 {
 		return "9999"
