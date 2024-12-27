@@ -39,7 +39,7 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 	memtable := NewMemtable()
 
 	// 3. Build your  SSTable manager
-	dir := "_sst" // directory to store sst files
+	dir := "sst" // directory to store sst files
 	bloomSize := uint(1000000)
 	indexInterval := 10
 

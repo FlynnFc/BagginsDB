@@ -46,7 +46,7 @@ func (mgr *SSTableManager) FlushMemtable(entries []ColumnEntry) error {
 	})
 
 	// Create a unique file
-	f, err := os.CreateTemp(mgr.directory, "wsstable_")
+	f, err := os.CreateTemp(mgr.directory, "sstable_")
 	if err != nil {
 		return err
 	}

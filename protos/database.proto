@@ -31,7 +31,6 @@ message SetResponse {
   bool success = 1;
 }
 
-
 message DeleteRequest {
   string partition_key = 1;
 }

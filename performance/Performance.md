@@ -5,6 +5,8 @@ This consists of random length data, invalid data, and a changeable mix of reads
 
 _Each test runs 5 times and the final result is an average of the runs_
 
+_ops/sec are on a single node unless specified otherwise_
+
 ## Version 0.1.0 - Baseline
 
 ### Bulk Writes
@@ -25,7 +27,7 @@ _Each test runs 5 times and the final result is an average of the runs_
 
 Read performance is completely awful. Can implement sstable offset indexing + potentially Read/Write locks or lock free reads?
 
-## Version 0.1.1 - Improvement of ~350% overall
+## Version 0.1.1
 
 The main change here is a more efficient compaction
 
@@ -45,7 +47,7 @@ The main change here is a more efficient compaction
 
 - 30% writes (200,836 ops/sec)
 
-## Version 0.1.2 - Improvement of ~125% overall
+## Version 0.1.2
 
 Core changes here was putting compaction in a worker and increasing memtable size from 1kb to 1mb
 
@@ -69,7 +71,7 @@ Core changes here was putting compaction in a worker and increasing memtable siz
 
 Looking at the function call graph, the third party skiplist is now a huge bottleneck (pprof003) as well as my trueTime implementation. Would benefit from implementing our own/ exploring other possible memtable data structures
 
-## Version 0.1.3 - Improvement of ~70% overall
+## Version 0.1.3
 
 Core changes here was putting compaction in a worker and increasing memtable size from 1kb to 1mb
 
@@ -92,3 +94,27 @@ Core changes here was putting compaction in a worker and increasing memtable siz
 ### Takeaways
 
 After implementing my own thread safe skiplist we got a large improvement for simulation and fuz testing. No meaningful change on bulk operations. But this could be hidden by the fact there is more locking happening now.
+
+## Version 0.2.0
+
+Pivoted from key-value store to wide column store. Improved locking granularity.
+
+### Bulk Writes
+
+- 1,000,000 operations in 3.7891508s (263,911.38 ops/sec)
+
+### Bulk Reads
+
+- 1,000,000 operations in 522.8734ms (1,912,508.84 ops/sec)
+
+### Mixed Workload 20% writes
+
+- 20000 operations in 55.6723ms (629,588.12 ops/sec)
+
+### Fuz Testing Workload
+
+- 30% writes (760,784 ops/sec)
+
+### Takeaways
+
+Getting slowly better at managing locks and file read/writes. Bulk reads have gotten quick but unrealistic in prod environments!
