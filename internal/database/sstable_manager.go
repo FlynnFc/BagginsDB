@@ -338,7 +338,6 @@ func writeSSTableIndex(filePath string, idx []EntryMetadata) error {
 // WriteBloomFilter writes a bloom filter to a file with the given name
 func WriteBloomFilter(filter *bloom.BloomFilter, fileName string) error {
 	// Create or overwrite the file
-	fmt.Println("Writing bloom filter to file", fileName)
 	file, err := os.Create("sst/" + fileName)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
