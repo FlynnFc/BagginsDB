@@ -1,0 +1,52 @@
+syntax="proto3";
+
+option go_package = "/protos;";
+
+service Database {
+  rpc Get(GetRequest) returns (GetResponse) {}
+  rpc Set(SetRequest) returns (SetResponse) {}
+  rpc Delete(DeleteRequest) returns (DeleteResponse) {}
+  rpc HeartBeat(HeartBeatRequest) returns (HeartBeatResponse) {}
+}
+
+
+message GetRequest {
+  string partition_key = 1;
+  repeated string clustering_keys = 2;
+  string column_name = 3;
+}
+
+message GetResponse {
+  string value = 1;
+}
+
+message SetRequest {
+  string partition_key = 1;
+  repeated string clustering_keys = 2;
+  string column_name = 3;
+  string value = 4;
+}
+
+message SetResponse {
+  bool success = 1;
+}
+
+message DeleteRequest {
+  string partition_key = 1;
+  repeated string clustering_keys = 2;
+  string column_name = 3;
+}
+
+message DeleteResponse {
+  bool success = 1;
+}
+
+message HeartBeatRequest {
+  string nodeId = 1;
+}
+
+message HeartBeatResponse {
+  bool success = 1;
+}
+
+

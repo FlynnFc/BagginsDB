@@ -1,4 +1,3 @@
-
 <p align="center">
   <img  width="200" src="https://github.com/user-attachments/assets/3bb7c1cc-5c97-4755-aa12-dfa85bc91344" alt="Centered Image"/>
   <h1 align="center">Baggins DB</h1>
@@ -15,11 +14,12 @@
   <a href="https://github.com/flynnfc/BagginsDB/blob/main/LICENSE.md">
     <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" title="MIT License" />
   </a>
-  
+
 
 </p>
 
 ---
+
 ## Features
 
 - **Memtable (In-Memory Index):**  
@@ -33,7 +33,7 @@
   Over time, multiple SSTables are merged and deduplicated into a single larger SSTable. This process, known as compaction, reduces storage fragmentation and keeps read performance stable by limiting the number of SSTables that must be searched.
 
 - **TrueTime Integration (Mocked):**  
-  The code incorporates a `truetime` component, simulating reliable timestamp generation, similar in spirit to [Google’s TrueTime](https://cloud.google.com/spanner/docs/true-time), though far simpler and not distributed. This allows the system to track record versions and choose the newest value during compactions.
+  The code incorporates a `truetime` component, simulating reliable timestamp generation, similar in spirit to [Google’s TrueTime](https://cloud.google.com/spanner/docs/true-time-external-consistency), though far simpler and not distributed. This allows the system to track record versions and choose the newest value during compactions.
 
 ## Project Structure
 

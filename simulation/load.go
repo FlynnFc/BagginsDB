@@ -11,9 +11,14 @@ import (
 	"time"
 
 	"github.com/flynnfc/bagginsdb/internal/database" // Adjust import as needed
-	"github.com/flynnfc/bagginsdb/internal/truetime"
 	"github.com/flynnfc/bagginsdb/logger"
 	"go.uber.org/zap"
+)
+
+// We'll store all values under the same column name, e.g. "data"
+var (
+	defaultClustering = [][]byte{}
+	defaultColumnName = []byte("data")
 )
 
 // RealisticCassandraLoad simulates a workload pattern resembling Cassandra usage:
@@ -21,14 +26,12 @@ import (
 // - Values of varying sizes.
 // - Random keys spread across a large keyspace.
 // - Multiple rounds of testing over time, simulating long-lived operation.
-//
-// Tweak parameters to represent realistic loads.
 type RealisticCassandraLoad struct {
 	DB            *database.Database
 	Logger        *zap.Logger
 	NumRounds     int           // How many rounds of testing to run
 	OpsPerRound   int           // Total operations per round
-	ReadRatio     int           // Percentage of ops that are reads (e.g., 70)
+	ReadRatio     int           // % of ops that are reads (e.g., 70)
 	KeySpaceSize  int           // Number of unique keys in the keyspace
 	MaxValueSize  int           // Max size of values in bytes
 	Workers       int           // Concurrency level
@@ -43,6 +46,7 @@ func randomBytes(size int) []byte {
 }
 
 // randomKey picks a random key number from 0 to KeySpaceSize-1 and returns it as bytes.
+// This will serve as our PARTITION KEY in the wide-column model.
 func (r *RealisticCassandraLoad) randomKey() []byte {
 	n, _ := rand.Int(rand.Reader, big.NewInt(int64(r.KeySpaceSize)))
 	return []byte(fmt.Sprintf("user_%010d", n.Int64()))
@@ -61,7 +65,7 @@ func (r *RealisticCassandraLoad) Run() {
 
 		start := time.Now()
 
-		// Calculate how many writes and reads this round
+		// Calculate how many writes vs. reads this round
 		writeRatio := 100 - r.ReadRatio
 		writeOps := r.OpsPerRound * writeRatio / 100
 		readOps := r.OpsPerRound - writeOps
@@ -73,9 +77,10 @@ func (r *RealisticCassandraLoad) Run() {
 			zap.Int("workers", r.Workers),
 		)
 
+		// Run one round of read/write mix
 		err := r.runRound(readOps, writeOps)
 		if err != nil {
-			r.Logger.Info("Starting round", zap.Int("round", round))
+			r.Logger.Error("Error during round", zap.Int("round", round), zap.Error(err))
 		}
 
 		end := time.Now()
@@ -86,6 +91,7 @@ func (r *RealisticCassandraLoad) Run() {
 			zap.Float64("ops_sec", opsSec),
 		)
 
+		// Pause before next round (unless it's the last)
 		if round < r.NumRounds {
 			r.Logger.Info("Pausing before next round", zap.Duration("interval", r.RoundInterval))
 			time.Sleep(r.RoundInterval)
@@ -101,7 +107,7 @@ func (r *RealisticCassandraLoad) runRound(readOps, writeOps int) error {
 	defer cancel()
 
 	var wg sync.WaitGroup
-	opCh := make(chan bool, r.Workers*2) // true = write, false = read
+	opCh := make(chan bool, r.Workers*2) // true=write, false=read
 	var writeCount int64
 	var readCount int64
 	var errorsCount int64
@@ -115,18 +121,18 @@ func (r *RealisticCassandraLoad) runRound(readOps, writeOps int) error {
 					return
 				}
 				if op {
-					// Write operation
+					// WRITE
 					key := r.randomKey()
 					val := r.randomValue()
-					r.DB.Put(key, val)
+					// wide-column call: (partitionKey, clusteringKeys, colName, value)
+					r.DB.Put(key, defaultClustering, defaultColumnName, val)
 					atomic.AddInt64(&writeCount, 1)
 				} else {
-					// Read operation
+					// READ
 					key := r.randomKey()
-					val := r.DB.Get(key)
-					// In a real scenario, some keys may not exist or have expired.
-					// Cassandra often sees partial misses. We won't treat this as an error,
-					// but if desired, track misses:
+					val := r.DB.Get(key, defaultClustering, defaultColumnName)
+					// We won't treat misses as errors because random keys may or may not exist.
+					// In a realistic Cassandra-like scenario, partial misses are normal.
 					_ = val
 					atomic.AddInt64(&readCount, 1)
 				}
@@ -142,9 +148,9 @@ func (r *RealisticCassandraLoad) runRound(readOps, writeOps int) error {
 		go worker()
 	}
 
-	// Queue ops (mix them randomly if desired)
-	// For simplicity, we enqueue all writes first, then reads.
-	// For a more realistic scenario, shuffle them.
+	// Enqueue operations
+	// For a “more realistic” scenario, you could randomize the enqueue order.
+	// Here, we just push all writes, then reads.
 	for i := 0; i < writeOps; i++ {
 		opCh <- true
 	}
@@ -156,12 +162,11 @@ func (r *RealisticCassandraLoad) runRound(readOps, writeOps int) error {
 	// Wait for completion
 	wg.Wait()
 
-	// Check final counts
 	wDone := atomic.LoadInt64(&writeCount)
 	rDone := atomic.LoadInt64(&readCount)
 	if wDone != int64(writeOps) || rDone != int64(readOps) {
 		atomic.AddInt64(&errorsCount, 1)
-		return fmt.Errorf("operation count mismatch (writes: %d/%d, reads: %d/%d)",
+		return fmt.Errorf("op mismatch (writes: %d/%d, reads: %d/%d)",
 			wDone, writeOps, rDone, readOps)
 	}
 	if errorsCount > 0 {
@@ -171,32 +176,29 @@ func (r *RealisticCassandraLoad) runRound(readOps, writeOps int) error {
 	return nil
 }
 
+// Load sets up the environment and runs the RealisticCassandraLoad scenario.
 func Load() {
-	// Initialize logger, truetime, and database as before
+	// Initialize logger, TrueTime, and DB
 	seed := time.Now().Format("2006-01-02-15-04-05")
 	logger := logger.InitLogger(seed + "-realistic")
-	mockClock := truetime.NewTrueTime(logger)
-	mockClock.Run()
 
+	// Adjust as needed for your new wide DB config
 	config := database.Config{Host: "localhost"}
-	db := database.NewDatabase(logger, config)
 
-	// Configure the realistic scenario
-	// Assume a Cassandra-like load:
-	// - Large keyspace (1 million keys)
-	// - Majority reads (70%) and some writes (30%)
-	// - 100k ops per round, 5 rounds total
-	// - Values can be up to 1KB
-	// - Pause 5 seconds between rounds
+	// Create wide-column Database
+	db := database.NewDatabase(logger, config)
+	defer db.Close()
+
+	// Configure our scenario:
 	loadTest := RealisticCassandraLoad{
 		DB:            db,
 		Logger:        logger,
-		NumRounds:     5,
-		OpsPerRound:   100000,
+		NumRounds:     3,       // e.g., 5 rounds
+		OpsPerRound:   100000,  // e.g., 100k ops/round
 		ReadRatio:     70,      // 70% reads, 30% writes
-		KeySpaceSize:  1000000, // 1 million keys
+		KeySpaceSize:  1000000, // ~1 million keys
 		MaxValueSize:  1024,    // up to 1KB
-		Workers:       500,     // concurrency level
+		Workers:       200,     // concurrency level
 		RoundInterval: 5 * time.Second,
 	}
 

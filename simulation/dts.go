@@ -2,6 +2,7 @@
 package simulation
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,33 +11,33 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/flynnfc/bagginsdb/internal/database" // Adjust import as necessary
-	"github.com/flynnfc/bagginsdb/internal/truetime"
+	"github.com/flynnfc/bagginsdb/internal/database" // Adjust import path as necessary
 	"github.com/flynnfc/bagginsdb/logger"
 )
 
 const (
-	NumRecords   = 1000000 // Example: 10k records for faster testing
+	NumRecords   = 1000000 // Example: 10k or 1M records
 	KeyPrefix    = "key_"
 	ValuePrefix  = "value_"
-	NonExistKeys = 1000 // Number of keys that we know do not exist
+	NonExistKeys = 1000
 )
 
-// Generate a deterministic key based on the index
+// Generate a deterministic partition key based on the index
 func generateKey(index int) []byte {
-	key := fmt.Sprintf("%s%d", KeyPrefix, index)
-	hash := sha256.Sum256([]byte(key))
+	s := fmt.Sprintf("%s%d", KeyPrefix, index)
+	hash := sha256.Sum256([]byte(s))
 	return []byte(hex.EncodeToString(hash[:]))
 }
 
 // Generate a deterministic value based on the index
 func generateValue(index int) []byte {
-	value := fmt.Sprintf("%s%d", ValuePrefix, index)
-	hash := sha256.Sum256([]byte(value))
+	s := fmt.Sprintf("%s%d", ValuePrefix, index)
+	hash := sha256.Sum256([]byte(s))
 	return []byte(hex.EncodeToString(hash[:]))
 }
 
-// Bulk insert function using worker pools
+// bulkInsert inserts [numRecords] wide-column entries
+// partitionKey = generateKey(index), columnName="data", value=generateValue(index)
 func bulkInsert(db *database.Database, numRecords, workers int) error {
 	var wg sync.WaitGroup
 	recordCh := make(chan int, workers*2)
@@ -45,9 +46,9 @@ func bulkInsert(db *database.Database, numRecords, workers int) error {
 	worker := func() {
 		defer wg.Done()
 		for index := range recordCh {
-			key := generateKey(index)
+			partitionKey := generateKey(index)
 			value := generateValue(index)
-			db.Put(key, value)
+			db.Put(partitionKey, defaultClustering, defaultColumnName, value)
 			atomic.AddInt64(&inserted, 1)
 		}
 	}
@@ -58,6 +59,7 @@ func bulkInsert(db *database.Database, numRecords, workers int) error {
 		go worker()
 	}
 
+	// Feed tasks
 	for i := 0; i < numRecords; i++ {
 		recordCh <- i
 	}
@@ -65,12 +67,13 @@ func bulkInsert(db *database.Database, numRecords, workers int) error {
 
 	wg.Wait()
 	if inserted != int64(numRecords) {
-		return fmt.Errorf("inserted count mismatch: expected %d, got %d", numRecords, inserted)
+		return fmt.Errorf("inserted mismatch: expected %d, got %d", numRecords, inserted)
 	}
 	return nil
 }
 
-// Bulk retrieve and validate function using worker pools
+// bulkRetrieveAndValidate retrieves [numRecords] wide-column entries
+// by the same partition key & column, and validates the value
 func bulkRetrieveAndValidate(db *database.Database, numRecords, workers int) error {
 	var wg sync.WaitGroup
 	recordCh := make(chan int, workers*2)
@@ -80,15 +83,15 @@ func bulkRetrieveAndValidate(db *database.Database, numRecords, workers int) err
 	worker := func() {
 		defer wg.Done()
 		for index := range recordCh {
-			key := generateKey(index)
-			expectedValue := generateValue(index)
-			retrievedVal := db.Get(key)
-			if retrievedVal == nil {
+			partitionKey := generateKey(index)
+			expectedVal := generateValue(index)
+
+			val := db.Get(partitionKey, defaultClustering, defaultColumnName)
+			if val == nil {
 				atomic.AddInt64(&validationErrors, 1)
 				continue
 			}
-			valBytes, ok := retrievedVal.([]byte)
-			if !ok || string(valBytes) != string(expectedValue) {
+			if !bytes.Equal(val, expectedVal) {
 				atomic.AddInt64(&validationErrors, 1)
 			} else {
 				atomic.AddInt64(&retrieved, 1)
@@ -96,18 +99,19 @@ func bulkRetrieveAndValidate(db *database.Database, numRecords, workers int) err
 		}
 	}
 
+	// Start workers
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go worker()
 	}
 
+	// Feed tasks
 	for i := 0; i < numRecords; i++ {
 		recordCh <- i
 	}
 	close(recordCh)
 
 	wg.Wait()
-
 	if validationErrors > 0 {
 		return fmt.Errorf("validation failed with %d errors, retrieved %d/%d",
 			validationErrors, retrieved, numRecords)
@@ -115,23 +119,24 @@ func bulkRetrieveAndValidate(db *database.Database, numRecords, workers int) err
 	return nil
 }
 
-// Scenario B: Retrieve keys that are known not to exist
+// bulkRetrieveNonExistent tries to get keys we know don’t exist
 func bulkRetrieveNonExistent(db *database.Database, numNonExist, workers int) error {
 	var wg sync.WaitGroup
 	recordCh := make(chan int, workers*2)
 	var notFoundCount int64
 	var foundCount int64
 
-	// Generate non-existent keys by starting from numRecords+1, etc.
 	worker := func() {
 		defer wg.Done()
-		for index := range recordCh {
-			nonExistKey := generateKey(index + 1000000) // Offset to ensure non-existence
-			val := db.Get(nonExistKey)
-			if string(val.([]byte)) == "" {
-				atomic.AddInt64(&notFoundCount, 1)
-			} else {
+		for offsetIndex := range recordCh {
+			// offset to ensure these are distinct from inserted range
+			partitionKey := generateKey(offsetIndex + 10000000)
+			val := db.Get(partitionKey, defaultClustering, defaultColumnName)
+			// If we get anything other than nil or empty, it’s an error
+			if len(val) > 0 {
 				atomic.AddInt64(&foundCount, 1)
+			} else {
+				atomic.AddInt64(&notFoundCount, 1)
 			}
 		}
 	}
@@ -147,17 +152,14 @@ func bulkRetrieveNonExistent(db *database.Database, numNonExist, workers int) er
 	close(recordCh)
 
 	wg.Wait()
-
 	if foundCount > 0 {
-		return fmt.Errorf("expected no keys found, but found %d", foundCount)
+		return fmt.Errorf("expected none found, but found %d", foundCount)
 	}
 	return nil
 }
 
-// Scenario C: Mixed reads and writes concurrently.
+// mixedWorkload runs a mix of writes (Put) and reads (Get) at the ratio specified
 func mixedWorkload(db *database.Database, totalOps, writeRatio, workers int) error {
-	// writeRatio is a percentage of how many ops are writes vs reads.
-	// E.g. 50 means 50% writes and 50% reads.
 	writeOps := totalOps * writeRatio / 100
 	readOps := totalOps - writeOps
 
@@ -169,7 +171,7 @@ func mixedWorkload(db *database.Database, totalOps, writeRatio, workers int) err
 	defer cancel()
 
 	var wg sync.WaitGroup
-	opCh := make(chan bool, workers*2) // true for write, false for read
+	opCh := make(chan bool, workers*2) // true=write, false=read
 
 	worker := func() {
 		defer wg.Done()
@@ -182,14 +184,14 @@ func mixedWorkload(db *database.Database, totalOps, writeRatio, workers int) err
 				if op {
 					// Write
 					idx := int(atomic.AddInt64(&writesDone, 1))
-					key := generateKey(idx + 2000000) // Distinct range
-					val := generateValue(idx + 2000000)
-					db.Put(key, val)
+					partitionKey := generateKey(idx + 20000000) // Distinct range
+					val := generateValue(idx + 20000000)
+					db.Put(partitionKey, defaultClustering, defaultColumnName, val)
 				} else {
 					// Read
 					idx := int(atomic.AddInt64(&readsDone, 1))
-					key := generateKey(idx) // some existing range
-					_ = db.Get(key)         // don't validate here, just read
+					partitionKey := generateKey(idx)
+					_ = db.Get(partitionKey, defaultClustering, defaultColumnName)
 				}
 			case <-ctx.Done():
 				return
@@ -197,6 +199,7 @@ func mixedWorkload(db *database.Database, totalOps, writeRatio, workers int) err
 		}
 	}
 
+	// Spawn workers
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go worker()
@@ -218,14 +221,13 @@ func mixedWorkload(db *database.Database, totalOps, writeRatio, workers int) err
 
 	if wDone != int64(writeOps) || rDone != int64(readOps) {
 		atomic.AddInt64(&errs, 1)
-		return fmt.Errorf("mismatch in done ops. writes: %d/%d, reads: %d/%d",
+		return fmt.Errorf("mismatch in ops done: writes=%d/%d, reads=%d/%d",
 			wDone, writeOps, rDone, readOps)
 	}
-
 	return nil
 }
 
-// Measure execution time and print throughput
+// measureExecutionTime prints throughput metrics
 func measureExecutionTime(start, end time.Time, operation string, opsCount int) {
 	duration := end.Sub(start)
 	rate := float64(opsCount) / duration.Seconds()
@@ -233,19 +235,23 @@ func measureExecutionTime(start, end time.Time, operation string, opsCount int) 
 		operation, opsCount, duration, rate)
 }
 
+// Dts runs the simulation scenarios using the wide-column DB.
 func Dts() {
 	seed := time.Now().Format("2006-01-02-15-04-05")
 	logger := logger.InitLogger(seed + "-dts")
 
-	// Setup database
-	config := database.Config{Host: "localhost"}
-	mockClock := truetime.NewTrueTime(logger)
-	mockClock.Run()
+	// Setup DB
+	config := database.Config{
+		Host: "localhost",
+		// other fields if needed
+	}
+
 	db := database.NewDatabase(logger, config)
+	defer db.Close()
 
 	workers := 50
 
-	// Scenario A: Bulk Insert and Validate
+	// Scenario A: Bulk Insert
 	fmt.Printf("Scenario A: Bulk Insert %d records\n", NumRecords)
 	startInsert := time.Now()
 	err := bulkInsert(db, NumRecords, workers)
@@ -256,7 +262,8 @@ func Dts() {
 	}
 	measureExecutionTime(startInsert, endInsert, "Bulk Insert", NumRecords)
 
-	fmt.Printf("Scenario A: Bulk Retrieve and Validate %d records\n", NumRecords)
+	// Scenario A: Bulk Retrieve & Validate
+	fmt.Printf("Scenario A: Bulk Retrieve & Validate %d records\n", NumRecords)
 	startRetrieve := time.Now()
 	err = bulkRetrieveAndValidate(db, NumRecords, workers)
 	endRetrieve := time.Now()
@@ -266,7 +273,7 @@ func Dts() {
 		measureExecutionTime(startRetrieve, endRetrieve, "Bulk Retrieve/Validate", NumRecords)
 	}
 
-	// Scenario B: Non-existent Keys
+	// Scenario B: Retrieve non-existent keys
 	fmt.Printf("Scenario B: Retrieve %d non-existent keys\n", NonExistKeys)
 	startNonExist := time.Now()
 	err = bulkRetrieveNonExistent(db, NonExistKeys, workers)
@@ -277,7 +284,7 @@ func Dts() {
 		measureExecutionTime(startNonExist, endNonExist, "Non-existent Keys Retrieval", NonExistKeys)
 	}
 
-	// Scenario C: Mixed Workload (e.g., 20% writes, 80% reads)
+	// Scenario C: Mixed Workload
 	totalMixedOps := 20000
 	writeRatio := 20
 	fmt.Printf("Scenario C: Mixed workload of %d ops with %d%% writes\n", totalMixedOps, writeRatio)
@@ -290,7 +297,7 @@ func Dts() {
 		measureExecutionTime(startMixed, endMixed, "Mixed Workload", totalMixedOps)
 	}
 
-	// Final Summary
+	// Summary
 	fmt.Println("=== Final Summary ===")
 	fmt.Printf("Inserted: %d records\n", NumRecords)
 	fmt.Printf("Retrieved/Validated: %d records\n", NumRecords)
