@@ -177,10 +177,7 @@ func sameCompositeKey(a, b ColumnEntry) bool {
 			return false
 		}
 	}
-	if !bytes.Equal(a.ColumnName, b.ColumnName) {
-		return false
-	}
-	return true
+	return bytes.Equal(a.ColumnName, b.ColumnName)
 }
 
 // Close closes all open sstables

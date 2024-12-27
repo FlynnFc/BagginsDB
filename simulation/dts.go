@@ -134,7 +134,7 @@ func bulkRetrieveNonExistent(db *database.Database, numNonExist, workers int) er
 			partitionKey := generateKey(offsetIndex + 10000000)
 			val := db.Get(partitionKey, defaultClustering, defaultColumnName)
 			// If we get anything other than nil or empty, it’s an error
-			if val != nil && len(val) > 0 {
+			if len(val) > 0 {
 				atomic.AddInt64(&foundCount, 1)
 			} else {
 				atomic.AddInt64(&notFoundCount, 1)

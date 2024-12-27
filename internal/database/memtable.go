@@ -2,13 +2,11 @@ package database
 
 import (
 	"bytes"
-	"sync"
 )
 
 // memtable is an in-memory “table” for wide columns, wrapping SkipList.
 type memtable struct {
 	skiplist *SkipList
-	mu       sync.RWMutex
 }
 
 // NewMemtable creates a new wide memtable.
