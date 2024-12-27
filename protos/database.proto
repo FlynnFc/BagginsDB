@@ -1,0 +1,43 @@
+syntax="proto3";
+
+option go_package = "/protos;";
+
+service Database {
+  rpc Get(GetRequest) returns (GetResponse) {}
+  rpc Set(SetRequest) returns (SetResponse) {}
+  rpc Delete(DeleteRequest) returns (DeleteResponse) {}
+  rpc HeartBeat(HeartBeatRequest) returns (HeartBeatResponse) {}
+}
+
+message GetRequest {
+  string Key = 1;
+}
+
+message GetResponse {
+  string Value = 1;
+}
+
+message SetRequest {
+  string Key = 1;
+  string Value = 2;
+}
+
+message SetResponse {
+  bool Success = 1;
+}
+
+message DeleteRequest {
+  string Key = 1;
+}
+
+message DeleteResponse {
+  bool Success = 1;
+}
+
+message HeartBeatRequest {
+  string NodeId = 1;
+}
+
+message HeartBeatResponse {
+  bool Success = 1;
+}

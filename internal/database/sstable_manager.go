@@ -192,3 +192,23 @@ func deduplicateEntries(entries []struct {
 
 	return result
 }
+
+func loadSSTables(dir string, logger *zap.Logger) ([]*ssTable, error) {
+	_, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func (mgr *SSTableManager) Close() error {
+	mgr.mu.Lock()
+	defer mgr.mu.Unlock()
+	for _, sst := range mgr.sstables {
+		if err := sst.close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}

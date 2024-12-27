@@ -8,8 +8,9 @@ import (
 	"io"
 	"os"
 
+	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/flynnfc/bagginsdb/internal/truetime"
-	"github.com/willf/bloom"
+
 	"go.uber.org/zap"
 )
 

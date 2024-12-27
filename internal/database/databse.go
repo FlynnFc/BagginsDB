@@ -24,7 +24,6 @@ type Database struct {
 	compactionMu      sync.Mutex
 	flushMu           sync.Mutex
 	compactionTrigger chan struct{}
-	flushTrigger      chan struct{}
 	// You could store a threshold and intervals for compaction here if desired.
 	flushThreshold int
 }
@@ -130,5 +129,17 @@ func (d *Database) Compact() {
 
 	if err := d.sstManager.Compact(); err != nil {
 		d.logger.Error("Failed to compact SSTables", zap.Error(err))
+	}
+}
+
+func (d *Database) Close() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.sstManager.FlushMemtable(d.memtable)
+	d.memtable = nil
+
+	if err := d.sstManager.Close(); err != nil {
+		d.logger.Error("Failed to close SSTableManager", zap.Error(err))
 	}
 }

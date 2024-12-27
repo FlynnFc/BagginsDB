@@ -242,6 +242,7 @@ func Dts() {
 	mockClock := truetime.NewTrueTime(logger)
 	mockClock.Run()
 	db := database.NewDatabase(logger, config)
+	defer db.Close()
 
 	workers := 50
 

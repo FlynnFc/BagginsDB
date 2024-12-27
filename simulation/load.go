@@ -180,7 +180,7 @@ func Load() {
 
 	config := database.Config{Host: "localhost"}
 	db := database.NewDatabase(logger, config)
-
+	defer db.Close()
 	// Configure the realistic scenario
 	// Assume a Cassandra-like load:
 	// - Large keyspace (1 million keys)
