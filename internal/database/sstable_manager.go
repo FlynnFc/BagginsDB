@@ -3,12 +3,16 @@ package database
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 
+	"github.com/bits-and-blooms/bloom/v3"
 	"go.uber.org/zap"
 )
 
@@ -27,12 +31,22 @@ func NewSSTableManager(dir string, bloomSize uint, indexInterval int, logger *za
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
 	}
-	return &SSTableManager{
+
+	// Load saved sstables
+	mgr := &SSTableManager{
 		logger:        logger,
 		directory:     dir,
 		bloomSize:     bloomSize,
 		indexInterval: indexInterval,
-	}, nil
+	}
+
+	if err := mgr.LoadSStables(); err != nil {
+		fmt.Println("Failed to load sstables:", err.Error())
+	} else {
+		fmt.Println("Loaded", len(mgr.sstables), "sstables")
+	}
+
+	return mgr, nil
 }
 
 // FlushMemtable would convert a  “memtable” (not shown) into an SSTable on disk.
@@ -121,7 +135,7 @@ func (mgr *SSTableManager) Compact() error {
 	merged := deduplicateEntries(all)
 
 	// create a new compacted table
-	compPath := filepath.Join(mgr.directory, "wsstable_compacted")
+	compPath := filepath.Join(mgr.directory, "sstable_compacted")
 	newSST, err := buildSSTable(compPath, merged, mgr.bloomSize, mgr.indexInterval, mgr.logger)
 	if err != nil {
 		return err
@@ -135,6 +149,263 @@ func (mgr *SSTableManager) Compact() error {
 
 	mgr.sstables = []*SSTable{newSST}
 	return nil
+}
+
+func (mgr *SSTableManager) LoadSStables() error {
+	mgr.mu.Lock()
+	defer mgr.mu.Unlock()
+
+	files, err := os.ReadDir(mgr.directory)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+
+		if !strings.HasPrefix(f.Name(), "sstable_") {
+			continue
+		}
+
+		sst, err := openSSTable(filepath.Join(mgr.directory, f.Name()), mgr.logger)
+		if err != nil {
+			return err
+		}
+		mgr.sstables = append(mgr.sstables, sst)
+	}
+
+	return nil
+}
+
+func ExtractIdentifier(sstPath string) string {
+	// Split the string by "/"
+	fmt.Println("Extracting identifier from", sstPath)
+	parts := strings.Split(sstPath, "\\")
+	if len(parts) < 2 {
+		return "9999"
+	}
+
+	// Get the last part and check if it contains "sstable_"
+	lastPart := parts[len(parts)-1]
+	if strings.HasPrefix(lastPart, "sstable_") {
+		return lastPart[len("sstable_"):] // Extract everything after "sstable_"
+	}
+
+	return "cheese"
+}
+
+func openSSTable(filePath string, logger *zap.Logger) (*SSTable, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	baseIden := ExtractIdentifier(filePath)
+	idx, err := readSSTableIndex("sst/" + "index_" + baseIden)
+	if err != nil {
+		return nil, err
+	}
+	bf, err := ReadBloomFilter("sst/" + "bloom_" + baseIden)
+	if err != nil {
+		return nil, err
+	}
+
+	return &SSTable{
+		file:        file,
+		logger:      logger,
+		bloomFilter: bf,
+		index:       idx,
+	}, nil
+}
+
+func readSSTableIndex(filePath string) ([]EntryMetadata, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+	var idx []EntryMetadata
+
+	for {
+		var entry EntryMetadata
+
+		// Read the PartitionKey
+		var partitionKeyLength int32
+		if err := binary.Read(reader, binary.BigEndian, &partitionKeyLength); err != nil {
+			if err == io.EOF {
+				break // End of file
+			}
+			return nil, fmt.Errorf("failed to read partition key length: %w", err)
+		}
+		partitionKey := make([]byte, partitionKeyLength)
+		if _, err := io.ReadFull(reader, partitionKey); err != nil {
+			return nil, fmt.Errorf("failed to read partition key: %w", err)
+		}
+		entry.PartitionKey = partitionKey
+
+		// Read the number of ClusteringKeys
+		var numClusteringKeys int32
+		if err := binary.Read(reader, binary.BigEndian, &numClusteringKeys); err != nil {
+			return nil, fmt.Errorf("failed to read number of clustering keys: %w", err)
+		}
+		clusteringKeys := make([][]byte, numClusteringKeys)
+		for i := int32(0); i < numClusteringKeys; i++ {
+			var clusteringKeyLength int32
+			if err := binary.Read(reader, binary.BigEndian, &clusteringKeyLength); err != nil {
+				return nil, fmt.Errorf("failed to read clustering key length: %w", err)
+			}
+			clusteringKey := make([]byte, clusteringKeyLength)
+			if _, err := io.ReadFull(reader, clusteringKey); err != nil {
+				return nil, fmt.Errorf("failed to read clustering key: %w", err)
+			}
+			clusteringKeys[i] = clusteringKey
+		}
+		entry.ClusteringKeys = clusteringKeys
+
+		// Read the ColumnName
+		var columnNameLength int32
+		if err := binary.Read(reader, binary.BigEndian, &columnNameLength); err != nil {
+			return nil, fmt.Errorf("failed to read column name length: %w", err)
+		}
+		columnName := make([]byte, columnNameLength)
+		if _, err := io.ReadFull(reader, columnName); err != nil {
+			return nil, fmt.Errorf("failed to read column name: %w", err)
+		}
+		entry.ColumnName = columnName
+
+		// Read the FileOffset
+		if err := binary.Read(reader, binary.BigEndian, &entry.FileOffset); err != nil {
+			return nil, fmt.Errorf("failed to read file offset: %w", err)
+		}
+
+		// Append the entry to the index
+		idx = append(idx, entry)
+	}
+
+	return idx, nil
+}
+
+func writeSSTableIndex(filePath string, idx []EntryMetadata) error {
+	file, err := os.OpenFile("sst/"+filePath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	defer writer.Flush()
+
+	for _, entry := range idx {
+		// Write the PartitionKey
+		if err := binary.Write(writer, binary.BigEndian, int32(len(entry.PartitionKey))); err != nil {
+			return fmt.Errorf("failed to write partition key length: %w", err)
+		}
+		if _, err := writer.Write(entry.PartitionKey); err != nil {
+			return fmt.Errorf("failed to write partition key: %w", err)
+		}
+
+		// Write the ClusteringKeys
+		if err := binary.Write(writer, binary.BigEndian, int32(len(entry.ClusteringKeys))); err != nil {
+			return fmt.Errorf("failed to write number of clustering keys: %w", err)
+		}
+		for _, key := range entry.ClusteringKeys {
+			if err := binary.Write(writer, binary.BigEndian, int32(len(key))); err != nil {
+				return fmt.Errorf("failed to write clustering key length: %w", err)
+			}
+			if _, err := writer.Write(key); err != nil {
+				return fmt.Errorf("failed to write clustering key: %w", err)
+			}
+		}
+
+		// Write the ColumnName
+		if err := binary.Write(writer, binary.BigEndian, int32(len(entry.ColumnName))); err != nil {
+			return fmt.Errorf("failed to write column name length: %w", err)
+		}
+		if _, err := writer.Write(entry.ColumnName); err != nil {
+			return fmt.Errorf("failed to write column name: %w", err)
+		}
+
+		// Write the FileOffset
+		if err := binary.Write(writer, binary.BigEndian, entry.FileOffset); err != nil {
+			return fmt.Errorf("failed to write file offset: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// WriteBloomFilter writes a bloom filter to a file with the given name
+func WriteBloomFilter(filter *bloom.BloomFilter, fileName string) error {
+	// Create or overwrite the file
+	fmt.Println("Writing bloom filter to file", fileName)
+	file, err := os.Create("sst/" + fileName)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	// Serialize the bloom filter to a byte buffer
+	data, err := filter.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("failed to write bloom filter to buffer: %w", err)
+	}
+
+	buffer := bytes.NewBuffer(data)
+
+	// Write the buffer to the file
+	if _, err := file.Write(buffer.Bytes()); err != nil {
+		return fmt.Errorf("failed to write buffer to file: %w", err)
+	}
+
+	return nil
+}
+
+// ReadBloomFilter reads a bloom filter from a file with the given name
+func ReadBloomFilter(fileName string) (*bloom.BloomFilter, error) {
+	// Open the file
+	file, err := os.Open(fileName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	// Read the file content into a byte buffer
+	info, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file info: %w", err)
+	}
+	buffer := make([]byte, info.Size())
+	if _, err := file.Read(buffer); err != nil {
+		return nil, fmt.Errorf("failed to read file content: %w", err)
+	}
+
+	// Deserialize the bloom filter from the buffer
+	filter := bloom.New(1, 1) // Create an empty filter to populate
+	if err := filter.UnmarshalBinary(buffer); err != nil {
+		return nil, fmt.Errorf("failed to read bloom filter from buffer: %w", err)
+	}
+
+	return filter, nil
+}
+
+func readEntryMetadata(reader *bufio.Reader) (EntryMetadata, error) {
+	var entry EntryMetadata
+	if err := binary.Read(reader, binary.BigEndian, &entry.PartitionKey); err != nil {
+		return EntryMetadata{}, err
+	}
+	if err := binary.Read(reader, binary.BigEndian, &entry.ClusteringKeys); err != nil {
+		return EntryMetadata{}, err
+	}
+	if err := binary.Read(reader, binary.BigEndian, &entry.ColumnName); err != nil {
+		return EntryMetadata{}, err
+	}
+	if err := binary.Read(reader, binary.BigEndian, &entry.FileOffset); err != nil {
+		return EntryMetadata{}, err
+	}
+	return entry, nil
 }
 
 // deduplicateEntries merges entries that share the same (partitionKey, clusteringKeys, columnName),

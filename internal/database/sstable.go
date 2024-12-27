@@ -180,6 +180,15 @@ func buildSSTable(filePath string, entries []ColumnEntry, bloomSize uint, indexI
 	if err := writer.Flush(); err != nil {
 		return nil, err
 	}
+	// Do these AFTER actually flushing the important data. These can be generated from the data if failed and needed :)
+	baseIden := ExtractIdentifier(filePath)
+	if err := WriteBloomFilter(bf, "bloom_"+baseIden); err != nil {
+		return nil, err
+	}
+
+	if err := writeSSTableIndex("index_"+baseIden, idx); err != nil {
+		return nil, err
+	}
 
 	return &SSTable{
 		file:        file,
