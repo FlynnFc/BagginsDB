@@ -3,7 +3,7 @@ package database
 import (
 	"sync"
 
-	"github.com/flynnfc/bagginsdb/internal/truetime"
+	"github.com/flynnfc/bagginsdb/truetime"
 	"go.uber.org/zap"
 )
 

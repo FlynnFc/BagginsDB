@@ -40,7 +40,7 @@ func NewSSTableManager(dir string, bloomSize uint, indexInterval int, logger *za
 		indexInterval: indexInterval,
 	}
 
-	// TODO: Issue with loading index and bloom. Actually want this at the top of the sstable file.
+	// // TODO: Issue with loading index and bloom. Actually want this at the top of the sstable file.
 	// if err := mgr.LoadSStables(); err != nil {
 	// 	return mgr, err
 	// }

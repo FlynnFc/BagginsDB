@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/bits-and-blooms/bloom/v3"
-	"github.com/flynnfc/bagginsdb/internal/truetime"
+	"github.com/flynnfc/bagginsdb/truetime"
 
 	"go.uber.org/zap"
 )

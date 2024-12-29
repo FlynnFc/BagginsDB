@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"sync"
 
-	"github.com/flynnfc/bagginsdb/internal/truetime"
+	"github.com/flynnfc/bagginsdb/truetime"
 )
 
 // Value represents the data stored in each SkipList node.
