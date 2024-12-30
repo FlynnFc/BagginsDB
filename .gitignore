@@ -1,6 +1,6 @@
 /target
 /learn
-simulation/sst
-simulation/logs
+/simulation
 /logs
 /sst
+/performance/*

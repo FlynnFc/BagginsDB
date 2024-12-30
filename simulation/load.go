@@ -94,7 +94,7 @@ type ResultRecord struct {
 
 // WriteCSV writes a list of ResultRecords to a CSV file.
 func WriteCSV(filename string, records []ResultRecord) error {
-	f, err := os.Create(filename)
+	f, err := os.Create("performance/data/" + filename)
 	if err != nil {
 		return err
 	}
@@ -350,7 +350,7 @@ func Load() {
 			DB:            db,
 			Logger:        log,
 			NumRounds:     3,       // e.g., 3 rounds
-			OpsPerRound:   1000000, // e.g., 50k ops/round
+			OpsPerRound:   50000,   // e.g., 50k ops/round
 			ReadRatio:     50,      // 70% reads, 30% writes
 			KeySpaceSize:  1000000, // ~1 million keys
 			MaxValueSize:  1024,    // up to 1KB
