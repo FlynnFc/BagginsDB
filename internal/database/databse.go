@@ -3,7 +3,8 @@ package database
 import (
 	"sync"
 
-	"github.com/flynnfc/bagginsdb/internal/truetime"
+	"github.com/flynnfc/bagginsdb/logger"
+	"github.com/flynnfc/bagginsdb/truetime"
 	"go.uber.org/zap"
 )
 
@@ -16,14 +17,14 @@ type Config struct {
 
 // Database is our -column DB that manages memtables & SSTables.
 type Database struct {
-	logger      *zap.Logger
-	config      Config
-	memtable    *memtable
-	oldMemtable *memtable
-	sstManager  *SSTableManager
-
-	clock             *truetime.TrueTime
+	logger            *zap.Logger
+	wal               logger.WAL
+	config            Config
+	memtable          *memtable
+	oldMemtable       *memtable
+	sstManager        *SSTableManager
 	mu                sync.RWMutex
+	clock             *truetime.TrueTime
 	compactionMu      sync.Mutex
 	flushMu           sync.Mutex
 	compactionTrigger chan struct{}
@@ -49,6 +50,8 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 		panic(err)
 	}
 
+	wal := logger.InitWAL("logs/wal.log")
+
 	// 4. Construct the Database struct
 	db := &Database{
 		logger:            l,
@@ -56,8 +59,9 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 		memtable:          memtable,
 		sstManager:        sstManager,
 		clock:             clock,
+		wal:               wal,
 		compactionTrigger: make(chan struct{}, 1),
-		flushThreshold:    1024 * 1000, // e.g. 100KB or 100k entries, up to you
+		flushThreshold:    1024 * 1024, // e.g. 100KB or 100k entries, up to you
 	}
 
 	db.startCompactionWorker()
@@ -66,7 +70,8 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 
 func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, value []byte) {
 	// 1) Acquire the lock for a short time
-	db.mu.Lock()
+	db.wal.Batch.Write(db.wal.Index, partKey)
+	// db.wal.Info("Put", zap.ByteString("partKey", partKey), zap.ByteStrings("clustering", clustering), zap.ByteString("colName", colName), zap.ByteString("value", value))
 	db.memtable.Put(ColumnEntry{
 		PartitionKey:   partKey,
 		ClusteringKeys: clustering,
@@ -75,14 +80,12 @@ func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, val
 		Timestamp:      db.clock.Now(),
 	})
 
-	// 2) Check threshold
 	needFlush := db.memtable.Len() > db.flushThreshold
 	var old *memtable
 	if needFlush {
 		old = db.memtable
 		db.memtable = NewMemtable()
 
-		// Possibly trigger compaction if too many SSTables
 		if len(db.sstManager.sstables) > 10 {
 			select {
 			case db.compactionTrigger <- struct{}{}:
@@ -91,19 +94,16 @@ func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, val
 		}
 	}
 
-	// 3) Unlock quickly
-	db.mu.Unlock()
-
-	// 4) If we had to flush, do it outside the main lock
 	if needFlush && old != nil {
 		go func(m *memtable) {
-			// Lock flushMu or do other concurrency control
 			db.flushMu.Lock()
 			defer db.flushMu.Unlock()
 
 			entries := m.ToColumnEntries()
 			if err := db.sstManager.FlushMemtable(entries); err != nil {
 				db.logger.Error("Flush failed", zap.Error(err))
+			} else {
+				db.logger.Info("Flushed memtable", zap.Int("entries", len(entries)))
 			}
 		}(old)
 	}
@@ -111,17 +111,14 @@ func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, val
 
 // Get retrieves one “cell” by (partitionKey, clusteringKeys, columnName).
 func (db *Database) Get(partKey []byte, clustering [][]byte, colName []byte) []byte {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
-
-	// 1. Check the active memtable
+	// Check the active memtable
 	val := db.memtable.Get(partKey, clustering, colName)
 	if val == nil && db.oldMemtable != nil {
-		// 2. Check old memtable (if there was a recent flush)
+		// Check old memtable (if there was a recent flush)
 		val = db.oldMemtable.Get(partKey, clustering, colName)
 	}
 	if val == nil {
-		// 3. Go to SSTables
+		// Go to SSTables
 		res, err := db.sstManager.Get(partKey, clustering, colName)
 		if err != nil {
 			db.logger.Error("Error reading from SSTableManager", zap.Error(err))
@@ -138,6 +135,8 @@ func (db *Database) startCompactionWorker() {
 			db.compactionMu.Lock()
 			if err := db.sstManager.Compact(); err != nil {
 				db.logger.Error("Failed to compact SSTables", zap.Error(err))
+			} else {
+				db.logger.Info("Compaction completed", zap.Int("sstables", len(db.sstManager.sstables)))
 			}
 			db.compactionMu.Unlock()
 		}
@@ -146,9 +145,6 @@ func (db *Database) startCompactionWorker() {
 
 // Compact is a manual method to force a compaction
 func (db *Database) Compact() {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
 	if err := db.sstManager.Compact(); err != nil {
 		db.logger.Error("Failed to compact SSTables", zap.Error(err))
 	}
@@ -158,7 +154,7 @@ func (db *Database) Close() {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// 1. Flush current memtable
+	// Flush current memtable
 	if db.memtable != nil {
 		Entries := db.memtable.ToColumnEntries()
 		if err := db.sstManager.FlushMemtable(Entries); err != nil {
@@ -167,7 +163,7 @@ func (db *Database) Close() {
 		db.memtable = nil
 	}
 
-	// 2. Clean up old memtable if it exists
+	// Clean up old memtable if it exists
 	if db.oldMemtable != nil {
 		Entries := db.oldMemtable.ToColumnEntries()
 		if err := db.sstManager.FlushMemtable(Entries); err != nil {
@@ -176,7 +172,7 @@ func (db *Database) Close() {
 		db.oldMemtable = nil
 	}
 
-	// 3. Close the manager
+	// Close the manager
 	if err := db.sstManager.Close(); err != nil {
 		db.logger.Error("Failed to close SSTableManager", zap.Error(err))
 	}

@@ -40,8 +40,8 @@
 - `internal/database/`  
   Contains the core database logic including:
 
-  - `database.go`: The `Database` struct that ties together memtables, SSTableManager, and timing.
-  - `memtable.go`: In-memory skiplist for quick writes and reads.
+  - `database.go`: The `Database` struct that ties together mem-tables, SSTableManager, and timing.
+  - `memtable.go`, `skiplist.go`: In-memory skiplist for quick writes and reads.
   - `sstable.go`, `sstable_manager.go`: Handling on-disk SSTables, building them from memtables, indexing, and merging them during compaction.
 
 - `internal/truetime/`  
@@ -55,19 +55,16 @@
 - `logger/`  
   A simple logging wrapper configured to produce structured logs via `zap`.
 
-## Concurrency and Locking
-
-The database uses Go’s concurrency features. The `Database` struct employs a `sync.RWMutex` to allow concurrent reads and exclusive writes. However, the underlying SSTable code may require additional improvements, particularly around disk I/O operations.
+## Performance tuning and improvements
+I've opted to track and log performance at quite a granular level. You can find saved graphs and performance notes in the [Performance](performance) folder
 
 ## Roadmap
 
 - Add delete support (tombstones).
 - Implement proper error handling and recovery after crashes.
-- Add network interface or gRPC endpoint for remote access.
-- Enhance compaction strategies to handle large-scale data better.
+- Infinite scale!
 - Integrate more benchmarks and profiling tools to guide optimizations.
 
 ## License
 
 This project is distributed under the MIT License. See `LICENSE` for details.
-

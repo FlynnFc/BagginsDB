@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/flynnfc/bagginsdb/internal/utils"
+	"github.com/flynnfc/bagginsdb/utils"
 )
 
 type Role int
