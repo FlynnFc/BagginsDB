@@ -4,7 +4,9 @@
 </p>
 
 <p align="center">
-  Baggins DB is a simple Cassandra-inspired wide-column db. While not production-ready, it serves as an educational project to explore low-level database internals, concurrency control, and performance-tuning techniques.
+  Baggins DB is a simple Cassandra-inspired wide-column db. While not production-ready, it serves as an educational project to explore low-level database internals, concurrency control, and performance-tuning techniques.   <a href="https://flynnfc.dev/work/bagginsdb">
+    Blog on implementation
+  </a>
 </p>
 
 <p align="center">
@@ -17,6 +19,7 @@
 
 
 </p>
+  
 
 ---
 
