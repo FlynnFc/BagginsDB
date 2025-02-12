@@ -36,7 +36,7 @@ func buildCompositeKey(part []byte, clustering [][]byte, col []byte) []byte {
 	// partitionKey
 	buf.Write(part)
 	buf.WriteByte(0x00)
-	// clusteringKeys
+	// ClusteringValues
 	for _, ck := range clustering {
 		buf.Write(ck)
 		buf.WriteByte(0x01)
@@ -47,9 +47,9 @@ func buildCompositeKey(part []byte, clustering [][]byte, col []byte) []byte {
 	return buf.Bytes()
 }
 
-func (m *memtable) Put(entry ColumnEntry) {
+func (m *memtable) Put(entry Cell) {
 	// build composite key
-	composite := buildCompositeKey(entry.PartitionKey, entry.ClusteringKeys, entry.ColumnName)
+	composite := buildCompositeKey(entry.PartitionKey, entry.ClusteringValues, entry.ColumnName)
 	v := Value{
 		Data:      entry.Value,
 		Timestamp: entry.Timestamp,
@@ -68,24 +68,24 @@ func (m *memtable) Get(pk []byte, clustering [][]byte, colName []byte) []byte {
 }
 
 // Convert all skiplist entries back into wide ColumnEntries for flush
-func (m *memtable) ToColumnEntries() []ColumnEntry {
+func (m *memtable) ToColumnEntries() []Cell {
 	raw := m.skiplist.Entries()
-	var result []ColumnEntry
+	var result []Cell
 	for _, kv := range raw {
 		// parseCompositeKey is your function that splits composite back into pk, clustering, col
 		pk, cks, cname := parseCompositeKey(kv.Key)
-		result = append(result, ColumnEntry{
-			PartitionKey:   pk,
-			ClusteringKeys: cks,
-			ColumnName:     cname,
-			Value:          kv.Val.Data,
-			Timestamp:      kv.Val.Timestamp,
+		result = append(result, Cell{
+			PartitionKey:     pk,
+			ClusteringValues: cks,
+			ColumnName:       cname,
+			Value:            kv.Val.Data,
+			Timestamp:        kv.Val.Timestamp,
 		})
 	}
 	return result
 }
 
-func parseCompositeKey(key []byte) (partitionKey []byte, clusteringKeys [][]byte, columnName []byte) {
+func parseCompositeKey(key []byte) (partitionKey []byte, ClusteringValues [][]byte, columnName []byte) {
 	// 1) Find the first occurrence of 0x00 => partitionKey is everything before it
 	idx00 := bytes.IndexByte(key, 0x00)
 	if idx00 < 0 {
@@ -120,10 +120,10 @@ func parseCompositeKey(key []byte) (partitionKey []byte, clusteringKeys [][]byte
 		// Some splits may be empty if you have trailing 0x01, so filter those out
 		for _, p := range parts {
 			if len(p) > 0 {
-				clusteringKeys = append(clusteringKeys, p)
+				ClusteringValues = append(ClusteringValues, p)
 			}
 		}
 	}
 
-	return partitionKey, clusteringKeys, columnName
+	return partitionKey, ClusteringValues, columnName
 }

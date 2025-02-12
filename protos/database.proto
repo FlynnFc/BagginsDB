@@ -2,11 +2,25 @@ syntax="proto3";
 
 option go_package = "/protos;";
 
+message NodeInfo {
+  string node_id = 1;
+  string address = 2;
+}
+
+message MembershipRequest {
+  NodeInfo node = 1;
+}
+
+message MembershipResponse {
+  repeated NodeInfo cluster_nodes = 1;
+}
+
 service Database {
   rpc Get(GetRequest) returns (GetResponse) {}
   rpc Set(SetRequest) returns (SetResponse) {}
   rpc Delete(DeleteRequest) returns (DeleteResponse) {}
   rpc HeartBeat(HeartBeatRequest) returns (HeartBeatResponse) {}
+  rpc JoinCluster(MembershipRequest) returns (MembershipResponse) {}
 }
 
 

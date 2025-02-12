@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"math/rand"
 	"sync"
-
-	"github.com/flynnfc/bagginsdb/truetime"
 )
 
 // Value represents the data stored in each SkipList node.
 type Value struct {
 	Data      []byte
-	Timestamp truetime.Timestamp
+	Timestamp int64
 }
 
 // node is one element of the skiplist.
@@ -93,7 +91,7 @@ func (sl *SkipList) Set(key []byte, val Value) {
 
 	// If key already exists, update it if the new timestamp is newer.
 	if current != nil && bytes.Equal(current.key, key) {
-		if val.Timestamp.Latest.After(current.value.Timestamp.Latest) {
+		if val.Timestamp > current.value.Timestamp {
 			current.value = val
 		}
 		return
