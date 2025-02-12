@@ -333,8 +333,8 @@ func (r *RealisticCassandraLoad) runRound(readOps, writeOps int) (*Stats, error)
 func Load() {
 	var allResults []ResultRecord
 
-	for runNumber := 1; runNumber <= 3; runNumber++ {
-		fmt.Printf("=== RealisticCassandraLoad: Run %d/3 ===\n", runNumber)
+	for runNumber := 1; runNumber <= 5; runNumber++ {
+		fmt.Printf("=== RealisticCassandraLoad: Run %d/5 ===\n", runNumber)
 
 		// (1) Cleanup / re-init data between runs
 		cleanupDatabase() // Implement this function in your codebase
