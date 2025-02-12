@@ -353,8 +353,19 @@ func (s *SSTable) Get(partitionKey, columnName []byte, clusteringValues ...[]byt
 
 	var startOffset, endOffset int64
 	if i == 0 {
-		startOffset = s.dataOffset
-		endOffset = s.index[0].Offset
+		// If binary search returns 0 then the compositeKey is less than or equal to the first index key.
+		// If it exactly equals the first index key, we widen the search window to include subsequent cells.
+		if bytes.Compare(s.index[0].Key, compositeKey) == 0 {
+			startOffset = s.dataOffset
+			if len(s.index) > 1 {
+				endOffset = s.index[1].Offset
+			} else {
+				endOffset = s.indexOffset
+			}
+		} else {
+			// If compositeKey is less than the first key, it wasn't written in the table.
+			return nil, errors.New("key not found")
+		}
 	} else if i < len(s.index) {
 		startOffset = s.index[i-1].Offset
 		endOffset = s.index[i].Offset
@@ -363,29 +374,28 @@ func (s *SSTable) Get(partitionKey, columnName []byte, clusteringValues ...[]byt
 		endOffset = s.indexOffset
 	}
 
-	// Open the file.
+	// Check the region size. It must be positive.
+	if endOffset <= startOffset {
+		return nil, errors.New("invalid region size")
+	}
+
+	// Open the file for scanning.
 	f, err := os.Open(s.filePath)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	// Calculate how many bytes we need to read.
+	// Compute the region size and read the entire region in one syscall.
 	regionSize := endOffset - startOffset
-	if regionSize <= 0 {
-		return nil, errors.New("invalid region size")
-	}
-
-	// Read the entire region in one syscall.
 	regionBytes := make([]byte, regionSize)
 	if _, err := f.ReadAt(regionBytes, startOffset); err != nil {
 		return nil, err
 	}
 
-	// Process the region from memory.
+	// Process the region in memory.
 	buf := bytes.NewReader(regionBytes)
 	for {
-		// Try to read a cell from the buffer.
 		candidate, err := readCell(buf)
 		if err == io.EOF {
 			break
@@ -398,7 +408,7 @@ func (s *SSTable) Get(partitionKey, columnName []byte, clusteringValues ...[]byt
 		if cmp == 0 {
 			return &candidate, nil
 		} else if cmp > 0 {
-			// Since keys are sorted, if we've passed the target, we can abort.
+			// Keys are sorted; if we've passed the target, we can abort.
 			break
 		}
 	}
