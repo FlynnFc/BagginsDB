@@ -33,10 +33,10 @@
   - A Bloom filter to quickly determine if a key might exist.
   - A sparse index to jump near the desired key without scanning the entire file.
 - **Compaction:**  
-  Over time, multiple SSTables are merged and deduplicated into a single larger SSTable. This process, known as compaction, reduces storage fragmentation and keeps read performance stable by limiting the number of SSTables that must be searched.
+  Over time, multiple SSTables are merged and deduplicated into a single larger SSTable. This process, known as compaction, reduces storage fragmentation and stabilises read performance by limiting the number of SSTables that must be searched.
 
 - **TrueTime Integration (Mocked):**  
-  The code incorporates a `truetime` component, simulating reliable timestamp generation, similar in spirit to [Google’s TrueTime](https://cloud.google.com/spanner/docs/true-time-external-consistency), though far simpler and not distributed. This allows the system to track record versions and choose the newest value during compactions.
+  The code incorporates a `truetime` component, simulating reliable timestamp generation, similar in spirit to [Google’s TrueTime](https://cloud.google.com/spanner/docs/true-time-external-consistency), though far simpler and not distributed. This allows the program to avoid distributed locks and choose the newest value during compactions.
 
 ## Project Structure
 
