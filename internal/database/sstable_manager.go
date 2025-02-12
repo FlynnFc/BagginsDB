@@ -99,7 +99,7 @@ func (sm *SSTableManager) CreateSSTable(entries []Cell) error {
 	if err != nil {
 		return err
 	}
-	sst, err := WriteSSTable(p, entries, len(entries)/100, len(entries), 0.01)
+	sst, err := WriteSSTable(p, entries, 100, len(entries), 0.01)
 	if err != nil {
 		sm.logger.Error("Failed to create SSTable", zap.Error(err))
 	}

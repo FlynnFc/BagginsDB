@@ -21,10 +21,17 @@ const (
 // Cell represents a single cell in a wide–column store.
 
 // readBytesWithPrefix reads a length-prefixed byte slice.
+// readBytesWithPrefix reads a 4‐byte length prefix and then that many bytes.
 func readBytesWithPrefix(r io.Reader) ([]byte, error) {
-	var length uint32
-	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
+	// Use a fixed 4-byte buffer to read the length.
+	var lenBuf [4]byte
+	if _, err := io.ReadFull(r, lenBuf[:]); err != nil {
 		return nil, err
+	}
+	length := binary.BigEndian.Uint32(lenBuf[:])
+	// If length is zero, return an empty slice.
+	if length == 0 {
+		return []byte{}, nil
 	}
 	buf := make([]byte, length)
 	if _, err := io.ReadFull(r, buf); err != nil {
@@ -61,30 +68,41 @@ func writeCell(w io.Writer, cell *Cell) error {
 }
 
 // readCell reads a Cell from r.
+// readCell reads a Cell from the provided io.Reader.
 func readCell(r io.Reader) (Cell, error) {
 	var cell Cell
 	var err error
 
+	// Read PartitionKey.
 	if cell.PartitionKey, err = readBytesWithPrefix(r); err != nil {
 		return cell, err
 	}
-	// Read clustering values count.
-	var count uint32
-	if err := binary.Read(r, binary.BigEndian, &count); err != nil {
+
+	// Read clustering values count (4 bytes).
+	var countBuf [4]byte
+	if _, err = io.ReadFull(r, countBuf[:]); err != nil {
 		return cell, err
 	}
+	count := binary.BigEndian.Uint32(countBuf[:])
+
+	// Preallocate slice for clustering values.
 	cell.ClusteringValues = make([][]byte, count)
 	for i := uint32(0); i < count; i++ {
 		if cell.ClusteringValues[i], err = readBytesWithPrefix(r); err != nil {
 			return cell, err
 		}
 	}
+
+	// Read ColumnName.
 	if cell.ColumnName, err = readBytesWithPrefix(r); err != nil {
 		return cell, err
 	}
+
+	// Read Value.
 	if cell.Value, err = readBytesWithPrefix(r); err != nil {
 		return cell, err
 	}
+
 	return cell, nil
 }
 
@@ -328,7 +346,6 @@ func (s *SSTable) Get(partitionKey, columnName []byte, clusteringValues ...[]byt
 		return nil, errors.New("key not found (bloom filter negative)")
 	}
 
-	// Use the sparse index to narrow the search window.
 	// Binary search the sparse index for the first entry with a key greater than compositeKey.
 	i := sort.Search(len(s.index), func(i int) bool {
 		return bytes.Compare(s.index[i].Key, compositeKey) > 0
@@ -336,43 +353,40 @@ func (s *SSTable) Get(partitionKey, columnName []byte, clusteringValues ...[]byt
 
 	var startOffset, endOffset int64
 	if i == 0 {
-		// If the first index entry is already greater than compositeKey, search from data start.
 		startOffset = s.dataOffset
 		endOffset = s.index[0].Offset
 	} else if i < len(s.index) {
-		// Otherwise, search from the previous index entry until the current index entry.
 		startOffset = s.index[i-1].Offset
 		endOffset = s.index[i].Offset
 	} else {
-		// If compositeKey is greater than all sparse index keys,
-		// start at the last index entry and scan until the index region begins.
 		startOffset = s.index[len(s.index)-1].Offset
 		endOffset = s.indexOffset
 	}
 
-	// Open the file for scanning.
+	// Open the file.
 	f, err := os.Open(s.filePath)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	// Seek to the start offset.
-	if _, err := f.Seek(startOffset, io.SeekStart); err != nil {
+	// Calculate how many bytes we need to read.
+	regionSize := endOffset - startOffset
+	if regionSize <= 0 {
+		return nil, errors.New("invalid region size")
+	}
+
+	// Read the entire region in one syscall.
+	regionBytes := make([]byte, regionSize)
+	if _, err := f.ReadAt(regionBytes, startOffset); err != nil {
 		return nil, err
 	}
 
-	// Scan sequentially from startOffset to endOffset.
+	// Process the region from memory.
+	buf := bytes.NewReader(regionBytes)
 	for {
-		pos, err := f.Seek(0, io.SeekCurrent)
-		if err != nil {
-			return nil, err
-		}
-		// Stop scanning once we reach the end offset.
-		if pos >= endOffset {
-			break
-		}
-		candidate, err := readCell(f)
+		// Try to read a cell from the buffer.
+		candidate, err := readCell(buf)
 		if err == io.EOF {
 			break
 		}
@@ -384,7 +398,7 @@ func (s *SSTable) Get(partitionKey, columnName []byte, clusteringValues ...[]byt
 		if cmp == 0 {
 			return &candidate, nil
 		} else if cmp > 0 {
-			// Since the keys are sorted, if we've passed the target, we can abort.
+			// Since keys are sorted, if we've passed the target, we can abort.
 			break
 		}
 	}
