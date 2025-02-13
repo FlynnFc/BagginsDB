@@ -36,7 +36,7 @@ require (
 )
 
 require (
-	github.com/bits-and-blooms/bitset v1.10.0 // indirect
+	github.com/bits-and-blooms/bitset v1.20.0 // indirect
 	github.com/prometheus/client_golang v1.20.5
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
