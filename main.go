@@ -17,7 +17,6 @@ import (
 	"github.com/flynnfc/bagginsdb/logger"
 	"github.com/flynnfc/bagginsdb/protos"
 	"github.com/flynnfc/bagginsdb/server"
-	"github.com/flynnfc/bagginsdb/simulation"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/prometheus/client_golang/prometheus"
@@ -41,8 +40,6 @@ func main() {
 		// Start the pprof server on port 6060
 		fmt.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
-	simulation.Dts()
-	simulation.Load()
 
 	// Initialize logger
 	logger := logger.InitLogger("bagginsdb")

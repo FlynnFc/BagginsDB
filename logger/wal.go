@@ -1,22 +1,25 @@
 package logger
 
 import (
-	"github.com/tidwall/wal"
+	"time"
+
+	wal "github.com/aarthikrao/wal"
+	"go.uber.org/zap"
 )
 
-type WAL struct {
-	Log   *wal.Log
-	Batch *wal.Batch
-	Index uint64
-}
+func InitWAL(filePath string, log *zap.Logger) *wal.WriteAheadLog {
 
-func InitWAL(filePath string) WAL {
-	// open a new log file
-	log, err := wal.Open(filePath, nil)
+	wal, err := wal.NewWriteAheadLog(&wal.WALOptions{
+		LogDir:            filePath,
+		MaxLogSize:        40 * 1024 * 1024, // 40 MB (log rotation size)
+		MaxSegments:       2,
+		Log:               log,
+		MaxWaitBeforeSync: 1 * time.Second,
+		SyncMaxBytes:      1000,
+	})
 	if err != nil {
 		panic(err)
 	}
-	batch := new(wal.Batch)
 
-	return WAL{Log: log, Batch: batch}
+	return wal
 }
