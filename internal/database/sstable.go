@@ -355,7 +355,7 @@ func (s *SSTable) Get(partitionKey, columnName []byte, clusteringValues ...[]byt
 	if i == 0 {
 		// If binary search returns 0 then the compositeKey is less than or equal to the first index key.
 		// If it exactly equals the first index key, we widen the search window to include subsequent cells.
-		if bytes.Compare(s.index[0].Key, compositeKey) == 0 {
+		if bytes.Equal(s.index[0].Key, compositeKey) {
 			startOffset = s.dataOffset
 			if len(s.index) > 1 {
 				endOffset = s.index[1].Offset

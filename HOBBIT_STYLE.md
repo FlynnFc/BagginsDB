@@ -1,4 +1,4 @@
-**Tiger Style Coding Practices: Middle-earth Edition**  
+**Tiger Style Coding Practices: Middle-earth Edition 🧙**  
 _Inspired by the wisdom of the Fellowship and the strength of the Free Peoples of Middle-earth._
 
 ---

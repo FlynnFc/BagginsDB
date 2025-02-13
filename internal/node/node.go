@@ -1,4 +1,4 @@
-package coordinator
+package node
 
 import (
 	"context"
@@ -9,19 +9,19 @@ import (
 	"go.uber.org/zap"
 )
 
-type Coordinator struct {
+type Node struct {
 	consistencyLevel int
 	hashRing         *HashRing
 	logger           *zap.Logger
 	sync.RWMutex
 }
 
-func NewCoordinator(config *CoordinatorConfig) *Coordinator {
-	return &Coordinator{consistencyLevel: config.consistencyLevel, hashRing: NewHashRing(config.replicas, config.hashFn), logger: config.logger}
+func NewNode(config *NodeConfig) *Node {
+	return &Node{consistencyLevel: config.consistencyLevel, hashRing: NewHashRing(config.replicas, config.hashFn), logger: config.logger}
 }
 
 // For now I don't wanna handle hot config reloads
-// func (c *Coordinator) SetConfig(config *CoordinatorConfig) {
+// func (c *Node) SetConfig(config *NodeConfig) {
 // 	c.Lock()
 // 	defer c.Unlock()
 // 	c.consistencyLevel = config.consistencyLevel
@@ -32,7 +32,7 @@ type Response struct {
 	data   []byte
 }
 
-func (c *Coordinator) HandleRequest(req *Request) {
+func (c *Node) HandleRequest(req *Request) {
 	// Check what nodes are responsible for the request.
 	c.RLock()
 	nodes := c.hashRing.Get(req.key)
@@ -84,12 +84,12 @@ func handleConsistencyResponse(d string, ok bool, ctx context.Context, w http.Re
 	}
 }
 
-func (c *Coordinator) Ping(node string) bool {
+func (c *Node) Ping(node string) bool {
 	// Check if the node is available.
 	return true
 }
 
-func (c *Coordinator) isAll(responses []*Response) bool {
+func (c *Node) isAll(responses []*Response) bool {
 	for _, res := range responses {
 		if res.status != 200 {
 			return false
@@ -98,7 +98,7 @@ func (c *Coordinator) isAll(responses []*Response) bool {
 	return true
 }
 
-func (c *Coordinator) isQuorum(responses []*Response) (string, bool) {
+func (c *Node) isQuorum(responses []*Response) (string, bool) {
 	if len(responses) == 0 {
 		return "", false
 	}
@@ -125,7 +125,7 @@ func (c *Coordinator) isQuorum(responses []*Response) (string, bool) {
 	return "", false
 }
 
-func (c *Coordinator) AddNode(node string) {
+func (c *Node) AddNode(node string) {
 	c.hashRing.Add(node)
 }
 
@@ -134,7 +134,7 @@ type Request struct {
 	value []byte
 }
 
-func (c *Coordinator) ForwardRequest(req *Request) (*Response, error) {
+func (c *Node) ForwardRequest(req *Request) (*Response, error) {
 	// Forward request to the appropriate node.
 	return &Response{}, nil
 }

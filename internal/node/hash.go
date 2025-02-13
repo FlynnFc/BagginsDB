@@ -1,4 +1,4 @@
-package coordinator
+package node
 
 import (
 	"hash/crc32"

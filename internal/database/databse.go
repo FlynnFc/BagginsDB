@@ -18,7 +18,7 @@ type Config struct {
 // Database is our -column DB that manages memtables & SSTables.
 type Database struct {
 	logger            *zap.Logger
-	wal               logger.WAL
+	wal               *zap.Logger
 	config            Config
 	memtable          *memtable
 	oldMemtable       *memtable
@@ -50,7 +50,7 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 		panic(err)
 	}
 
-	wal := logger.InitWAL("logs/wal.log")
+	wal := logger.InitWALLogger("wal/wal")
 
 	// 4. Construct the Database struct
 	db := &Database{
@@ -68,9 +68,7 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 }
 
 func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, value []byte) {
-	// 1) Acquire the lock for a short time
-	db.wal.Batch.Write(db.wal.Index, partKey)
-	// db.wal.Info("Put", zap.ByteString("partKey", partKey), zap.ByteStrings("clustering", clustering), zap.ByteString("colName", colName), zap.ByteString("value", value))
+	db.wal.Info("Put", zap.ByteString("partKey", partKey), zap.ByteStrings("clustering", clustering), zap.ByteString("colName", colName), zap.ByteString("value", value))
 	db.memtable.Put(Cell{
 		PartitionKey:     partKey,
 		ClusteringValues: clustering,
@@ -86,7 +84,10 @@ func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, val
 		old = db.memtable
 		db.memtable = NewMemtable()
 		db.mu.Unlock()
-
+		err := db.wal.Sync()
+		if err != nil {
+			db.logger.Error("Failed to sync WAL", zap.Error(err))
+		}
 		go func(m *memtable) {
 			db.flushMu.Lock()
 			defer db.flushMu.Unlock()
@@ -96,6 +97,8 @@ func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, val
 				db.logger.Error("Flush failed", zap.Error(err))
 			} else {
 				db.logger.Info("Flushed memtable", zap.Int("entries", len(entries)))
+				// Delete old WAL/Mark it safe for deletion
+				db.wal.Info("Checkpoint")
 			}
 		}(old)
 	}
@@ -125,6 +128,9 @@ func (db *Database) Close() {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
+	if err := db.logger.Sync(); err != nil {
+		db.logger.Error("Failed to wal on close", zap.Error(err))
+	}
 	// Flush current memtable
 	if db.memtable != nil {
 		Entries := db.memtable.ToColumnEntries()

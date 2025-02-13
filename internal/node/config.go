@@ -1,4 +1,4 @@
-package coordinator
+package node
 
 import "go.uber.org/zap"
 
@@ -8,7 +8,7 @@ const (
 	ALL
 )
 
-type CoordinatorConfig struct {
+type NodeConfig struct {
 	consistencyLevel int
 	replicas         int
 	hashFn           Hash
