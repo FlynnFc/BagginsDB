@@ -9,8 +9,8 @@ const (
 )
 
 type NodeConfig struct {
-	consistencyLevel int
-	replicas         int
-	hashFn           Hash
-	logger           *zap.Logger
+	ConsistencyLevel int
+	Replicas         int
+	HashFn           Hash
+	Logger           *zap.Logger
 }

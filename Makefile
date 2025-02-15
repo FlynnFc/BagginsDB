@@ -2,10 +2,10 @@
 
 .PHONY: proto lint
 
-proto:
+protodb:
 	protoc --go_out=. --go_opt=paths=source_relative \
 	        --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-	        protos/database.proto
+	        protos/BagginsDBService.proto
 
 lint:
 	-staticcheck ./... || exit 0

@@ -17,7 +17,7 @@ type Node struct {
 }
 
 func NewNode(config *NodeConfig) *Node {
-	return &Node{consistencyLevel: config.consistencyLevel, hashRing: NewHashRing(config.replicas, config.hashFn), logger: config.logger}
+	return &Node{consistencyLevel: config.ConsistencyLevel, hashRing: NewHashRing(config.Replicas, config.HashFn), logger: config.Logger}
 }
 
 // For now I don't wanna handle hot config reloads
@@ -66,11 +66,11 @@ func (c *Node) HandleRequest(req *Request) {
 			handleConsistencyResponse(string(responses[0].data), false, context.Background(), nil)
 		}
 	case QUORUM:
-		data, ok := c.isQuorum(responses)
+		data, ok := c.IsQuorum(responses)
 		handleConsistencyResponse(data, ok, context.Background(), nil)
 		// Return request
 	case ALL:
-		ok := c.isAll(responses)
+		ok := c.IsAll(responses)
 		handleConsistencyResponse(string(responses[0].data), ok, context.Background(), nil)
 		// Return request [0]
 	}
@@ -89,7 +89,7 @@ func (c *Node) Ping(node string) bool {
 	return true
 }
 
-func (c *Node) isAll(responses []*Response) bool {
+func (c *Node) IsAll(responses []*Response) bool {
 	for _, res := range responses {
 		if res.status != 200 {
 			return false
@@ -98,7 +98,7 @@ func (c *Node) isAll(responses []*Response) bool {
 	return true
 }
 
-func (c *Node) isQuorum(responses []*Response) (string, bool) {
+func (c *Node) IsQuorum(responses []*Response) (string, bool) {
 	if len(responses) == 0 {
 		return "", false
 	}
@@ -132,6 +132,11 @@ func (c *Node) AddNode(nodes ...string) {
 type Request struct {
 	key   string
 	value []byte
+}
+
+func (c *Node) GetHash(key string) []string {
+	// Forward request to the appropriate node.
+	return c.hashRing.Get(key)
 }
 
 func (c *Node) ForwardRequest(req *Request) (*Response, error) {

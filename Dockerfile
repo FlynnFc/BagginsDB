@@ -1,12 +1,9 @@
-# The base go-image
-FROM golang:1.14-alpine
- 
-RUN mkdir /app
- 
-COPY . /app
- 
-WORKDIR /app
- 
-RUN go build -o bagginsdb . 
+# Use a more recent version of Go that supports go 1.23 and the toolchain directive.
+FROM golang:1.23-alpine
 
-CMD [ "/app/server" ]
+RUN mkdir /app
+COPY . /app
+WORKDIR /app
+RUN go build -o bagginsdb .
+
+CMD ["/app/bagginsdb"]
