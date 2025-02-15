@@ -125,8 +125,8 @@ func (c *Node) isQuorum(responses []*Response) (string, bool) {
 	return "", false
 }
 
-func (c *Node) AddNode(node string) {
-	c.hashRing.Add(node)
+func (c *Node) AddNode(nodes ...string) {
+	c.hashRing.Add(nodes...)
 }
 
 type Request struct {

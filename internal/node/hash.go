@@ -30,7 +30,6 @@ func NewHashRing(replicas int, fn Hash) *HashRing {
 	return m
 }
 
-// Add adds one or more nodes to the hash ring.
 func (m *HashRing) Add(nodes ...string) {
 	m.Lock()
 	defer m.Unlock()
