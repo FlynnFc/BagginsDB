@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/flynnfc/bagginsdb/internal/database"
-	"github.com/flynnfc/bagginsdb/internal/hasher"
+	"github.com/flynnfc/bagginsdb/database"
+	"github.com/flynnfc/bagginsdb/hasher"
 	"github.com/flynnfc/bagginsdb/logger"
 	"github.com/flynnfc/bagginsdb/protos"
 	"google.golang.org/grpc"
