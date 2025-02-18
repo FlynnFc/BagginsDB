@@ -33,17 +33,20 @@ func (m *memtable) Entries() []struct {
 // delimiters for composite keys
 func buildCompositeKey(part []byte, clustering [][]byte, col []byte) []byte {
 	var buf bytes.Buffer
-	// partitionKey
+	// partition key + 0x00
 	buf.Write(part)
 	buf.WriteByte(0x00)
-	// ClusteringValues
+
+	// clustering values + 0x01 delimiter
 	for _, ck := range clustering {
 		buf.Write(ck)
 		buf.WriteByte(0x01)
 	}
-	// columnName
-	buf.Write(col)
+
+	// write 0x02, then column name
 	buf.WriteByte(0x02)
+	buf.Write(col)
+
 	return buf.Bytes()
 }
 

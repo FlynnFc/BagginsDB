@@ -10,24 +10,17 @@ import (
 	"go.uber.org/zap"
 )
 
-// DBConfig holds user-defined settings (similar to your Config).
-type Config struct {
-	Host             string
-	MemTableSize     int
-	ConsistencyLevel int
-}
-
 // Database is our -column DB that manages memtables & SSTables.
 type Database struct {
-	logger            *zap.Logger
-	wal               *zap.Logger
-	config            Config
-	memtable          *memtable
-	oldMemtable       *memtable
-	sstManager        *sstableManager
-	mu                sync.RWMutex
-	clock             *truetime.TrueTime
-	compactionMu      sync.Mutex
+	logger      *zap.Logger
+	wal         *zap.Logger
+	config      Config
+	memtable    *memtable
+	oldMemtable *memtable
+	sstManager  *sstableManager
+	mu          sync.RWMutex
+	clock       *truetime.TrueTime
+	// compactionMu      sync.Mutex
 	flushMu           sync.Mutex
 	compactionTrigger chan struct{}
 
@@ -68,7 +61,7 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 		clock:             clock,
 		wal:               wal,
 		compactionTrigger: make(chan struct{}, 1),
-		flushThreshold:    1024 * 1024, // e.g. 100KB or 100k entries, up to you
+		flushThreshold:    c.MemTableSize, // e.g. 100KB or 100k entries, up to you
 	}
 
 	return db

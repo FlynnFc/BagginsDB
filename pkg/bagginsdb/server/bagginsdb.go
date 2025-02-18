@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/flynnfc/bagginsdb/logger"
+	"github.com/flynnfc/bagginsdb/pkg/bagginsdb/consistency"
 	"github.com/flynnfc/bagginsdb/pkg/bagginsdb/db"
 	"github.com/flynnfc/bagginsdb/pkg/bagginsdb/hasher"
 	"github.com/flynnfc/bagginsdb/protos"
@@ -30,7 +31,7 @@ func NewServer(localNode *protos.Node) *bagginsServer {
 
 	// Database configuration
 	dbConfig := db.Config{
-		Host: "localhost",
+		MemTableSize: 1024 * 1024, // 1MB
 	}
 	nodeConfig := &hasher.HasherConfig{ConsistencyLevel: 1, Replicas: 1, Logger: logger}
 	db := db.NewDatabase(logger, dbConfig)
@@ -112,11 +113,11 @@ func (s *bagginsServer) HandleRequest(ctx context.Context, req *protos.Request) 
 	numNodes := len(nodes)
 	var required int
 	switch req.GetConsistencyLevel() {
-	case hasher.ONE:
+	case consistency.ONE:
 		required = 1
-	case hasher.QUORUM:
+	case consistency.QUORUM:
 		required = numNodes/2 + 1
-	case hasher.ALL:
+	case consistency.ALL:
 		required = numNodes
 	default:
 		// Fallback: treat unknown as ALL.
@@ -175,7 +176,7 @@ collectLoop:
 			}
 			collected = append(collected, res)
 			// If the consistency level is ONE, we can return immediately.
-			if req.GetConsistencyLevel() == hasher.ONE && len(collected) >= 1 {
+			if req.GetConsistencyLevel() == consistency.ONE && len(collected) >= 1 {
 				return collected[0], nil
 			}
 			// For QUORUM or ALL, if we have enough responses, break out.
