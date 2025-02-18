@@ -28,7 +28,7 @@ func (c *Hasher) AddNode(nodes ...string) {
 	c.hashRing.Add(nodes...)
 }
 
-func (c *Hasher) GetHash(key string) []string {
+func (c *Hasher) GetNodes(key string) []string {
 	// Forward request to the appropriate node.
 	return c.hashRing.Get(key)
 }
