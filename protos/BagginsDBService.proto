@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package bagginsdb;
+option go_package = "/protos;";
+// Defines the basic node information for cluster membership and consistent hashing.
+message Node {
+  string id = 1;               // Unique identifier for the node.
+  string address = 2;          // Network address (e.g., "192.168.1.10:50051").
+  repeated int64 tokens = 3;   // List of tokens assigned to this node for partitioning.
+}
+
+// Enum representing the type of client request.
+enum RequestType {
+  READ = 0;
+  WRITE = 1;
+}
+
+// Represents a client request for reading or writing data.
+message Request {
+  RequestType type = 1;
+  string partition_key = 2;
+  repeated string clustering_keys = 3;
+  string column_name = 4;
+  bytes value = 5;             // Data for write operations (empty for reads).
+  int32 consistency_level = 6; // E.g., 1 (ONE), 2 (QUORUM), 3 (ALL), etc.
+}
+
+// Represents the response returned by a node.
+message Response {
+  int32 status = 1;    // Status code (e.g., 200 for success, 404 for not found).
+  bytes data = 2;      // Returned data (if any).
+  string message = 3;  // Optional text message or error description.
+}
+
+// Request used by a node when joining the cluster.
+message JoinClusterRequest {
+  Node node = 1;
+}
+
+// Response to a join cluster request.
+message JoinClusterResponse {
+  bool success = 1;
+  string message = 2;
+  // Optionally, return the current list of nodes in the cluster.
+  repeated Node cluster_nodes = 3;
+}
+
+// Message used to forward a client request from one node to another.
+message ForwardedRequest {
+  Request original_request = 1;
+  Node from_node = 2; // The node that is forwarding the request.
+}
+
+// A simple health check message.
+message HealthCheck {
+  Node node = 1;
+}
+
+// The service exposed by each node in the cluster.
+service BagginsDBService {
+  // Called by a new node to join the cluster.
+  rpc JoinCluster(JoinClusterRequest) returns (JoinClusterResponse);
+  // Used by clients to send read/write requests.
+  // The node receiving this request will determine if it is responsible;
+  // if not, it can forward the request to the correct node.
+  rpc HandleRequest(Request) returns (Response);
+  // Used by nodes to forward requests that do not belong to them.
+  rpc ForwardRequest(ForwardedRequest) returns (Response);
+  // Basic health check to verify node liveness.
+  rpc Gossip(Request) returns (Response);
+  rpc HeartBeat(HealthCheck) returns (Response);
+}
