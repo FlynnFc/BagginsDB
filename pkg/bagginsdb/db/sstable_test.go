@@ -176,13 +176,13 @@ func TestSSTableGet(t *testing.T) {
 	// })
 
 	// Write an SSTable
-	sst, err := writeSSTable(filePath, cells, 2, len(cells), 0.01)
+	_, err := writeSSTable(filePath, cells, 2, len(cells), 0.01)
 	if err != nil {
 		t.Fatalf("writeSSTable failed: %v", err)
 	}
 
 	// Reload to ensure we read from disk
-	sst, err = loadSSTable(filePath)
+	sst, err := loadSSTable(filePath)
 	if err != nil {
 		t.Fatalf("loadSSTable failed: %v", err)
 	}
