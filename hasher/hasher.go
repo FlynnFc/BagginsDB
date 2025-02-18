@@ -8,7 +8,7 @@ import (
 
 type Hasher struct {
 	consistencyLevel int
-	hashRing         *HashRing
+	hashRing         *hashRing
 	logger           *zap.Logger
 	sync.RWMutex
 }

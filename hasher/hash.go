@@ -9,7 +9,7 @@ import (
 
 type Hash func(data []byte) uint32
 
-type HashRing struct {
+type hashRing struct {
 	hash     Hash           // The hash function to use.
 	replicas int            // Number of virtual nodes per actual node.
 	keys     []int          // Sorted hash ring.
@@ -17,8 +17,8 @@ type HashRing struct {
 	sync.RWMutex
 }
 
-func NewHashRing(replicas int, fn Hash) *HashRing {
-	m := &HashRing{
+func NewHashRing(replicas int, fn Hash) *hashRing {
+	m := &hashRing{
 		replicas: replicas,
 		hashMap:  make(map[int]string),
 	}
@@ -30,7 +30,7 @@ func NewHashRing(replicas int, fn Hash) *HashRing {
 	return m
 }
 
-func (m *HashRing) Add(nodes ...string) {
+func (m *hashRing) Add(nodes ...string) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -48,7 +48,7 @@ func (m *HashRing) Add(nodes ...string) {
 }
 
 // Get returns the closest node in the hash ring for the provided key.
-func (m *HashRing) Get(key string) []string {
+func (m *hashRing) Get(key string) []string {
 	m.RLock()
 	defer m.RUnlock()
 
