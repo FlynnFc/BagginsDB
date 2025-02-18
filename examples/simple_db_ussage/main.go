@@ -11,7 +11,8 @@ func main() {
 	logger := logger.InitLogger("bagginsdb-example")
 	// Create a new database instance. This will handle the creation and management of memtables and SSTables.
 	db := db.NewDatabase(logger, db.Config{MemTableSize: 1024 * 5})
-
+	// Closing the database will flush the memtable to SSTables and close any SSTables open.
+	defer db.Close()
 	// Put some data into the database
 	// This will be initially stored in the memtable
 	// If the database is closed of if the memtable is filled it will write to an SSTable
