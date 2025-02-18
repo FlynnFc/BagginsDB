@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/flynnfc/bagginsdb/internal/database"
-	"github.com/flynnfc/bagginsdb/internal/node"
+	"github.com/flynnfc/bagginsdb/internal/hasher"
 	"github.com/flynnfc/bagginsdb/logger"
 	"github.com/flynnfc/bagginsdb/protos"
 	"google.golang.org/grpc"
@@ -21,7 +21,8 @@ type bagginsServer struct {
 	localNode    *protos.Node
 	ClusterNodes map[string]*protos.Node // Map of node id -> Node
 	db           *database.Database
-	controlPlane *node.Node
+	controlPlane *hasher.Hasher
+	connPool     *ConnectionPool
 }
 
 // newServer creates a new instance of bagginsServer.
@@ -33,14 +34,16 @@ func NewServer(localNode *protos.Node) *bagginsServer {
 	dbConfig := database.Config{
 		Host: "localhost",
 	}
-	nodeConfig := &node.NodeConfig{ConsistencyLevel: 1, Replicas: 1, Logger: logger}
+	nodeConfig := &hasher.HasherConfig{ConsistencyLevel: 1, Replicas: 1, Logger: logger}
 	db := database.NewDatabase(logger, dbConfig)
-	n := node.NewNode(nodeConfig)
+	n := hasher.NewHasher(nodeConfig)
+	cPool := NewConnectionPool(5*time.Second, 10*time.Second)
 	s := &bagginsServer{
 		localNode:    localNode,
 		ClusterNodes: make(map[string]*protos.Node),
 		db:           db,
 		controlPlane: n,
+		connPool:     cPool,
 	}
 	// Add ourselves to our view.
 	s.ClusterNodes[localNode.GetId()] = localNode
@@ -85,7 +88,15 @@ func (s *bagginsServer) handleLocalRequest(ctx context.Context, req *protos.Requ
 	var data []byte
 	switch req.Type {
 	case protos.RequestType_READ:
-		data = s.db.Get([]byte(req.GetPartitionKey()), convertStringSliceToByteSlice(req.ClusteringKeys), []byte(req.ColumnName))
+		d, err := s.db.Get([]byte(req.GetPartitionKey()), convertStringSliceToByteSlice(req.ClusteringKeys), []byte(req.ColumnName))
+		if err != nil {
+			return &protos.Response{
+				Status:  500,
+				Data:    []byte(err.Error()),
+				Message: "ERROR",
+			}, nil
+		}
+		data = d
 	case protos.RequestType_WRITE:
 		s.db.Put([]byte(req.GetPartitionKey()), convertStringSliceToByteSlice(req.ClusteringKeys), []byte(req.ColumnName), req.Value)
 	}
@@ -105,11 +116,11 @@ func (s *bagginsServer) HandleRequest(ctx context.Context, req *protos.Request) 
 	numNodes := len(nodes)
 	var required int
 	switch req.GetConsistencyLevel() {
-	case node.ONE:
+	case hasher.ONE:
 		required = 1
-	case node.QUORUM:
+	case hasher.QUORUM:
 		required = numNodes/2 + 1
-	case node.ALL:
+	case hasher.ALL:
 		required = numNodes
 	default:
 		// Fallback: treat unknown as ALL.
@@ -137,8 +148,11 @@ func (s *bagginsServer) HandleRequest(ctx context.Context, req *protos.Request) 
 				res, err = s.handleLocalRequest(ctx, req)
 			}
 			if err != nil {
+				if err == context.Canceled {
+					log.Printf("Request canceled for node %s another node responded faster", n)
+					return
+				}
 				log.Printf("Error processing request on node %s: %v", n, err)
-				// Optionally, you can send an error response here.
 				return
 			}
 			responses <- res
@@ -155,6 +169,7 @@ func (s *bagginsServer) HandleRequest(ctx context.Context, req *protos.Request) 
 	var collected []*protos.Response
 	// Use a timeout in case some nodes never reply.
 	timeout := time.After(5 * time.Second)
+
 collectLoop:
 	for {
 		select {
@@ -164,7 +179,7 @@ collectLoop:
 			}
 			collected = append(collected, res)
 			// If the consistency level is ONE, we can return immediately.
-			if req.GetConsistencyLevel() == node.ONE && len(collected) >= 1 {
+			if req.GetConsistencyLevel() == hasher.ONE && len(collected) >= 1 {
 				return collected[0], nil
 			}
 			// For QUORUM or ALL, if we have enough responses, break out.
@@ -195,15 +210,63 @@ func (s *bagginsServer) resolveBestResponse(responses []*protos.Response) *proto
 	return nil
 }
 
-// ForwardRequest handles a forwarded request from another node.
 func (s *bagginsServer) ForwardRequest(ctx context.Context, req *protos.ForwardedRequest) (*protos.Response, error) {
-	log.Printf("ForwardRequest: Forwarding request from node %s", req.GetFromNode().GetAddress())
-	// In a real system, you might contact another node. Here, we siMulate success.
-	return &protos.Response{
-		Status:  200,
-		Data:    []byte("Forwarded request processed"),
-		Message: "OK",
-	}, nil
+	// Create a cancelable context.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	nodes := s.controlPlane.GetHash(req.OriginalRequest.PartitionKey)
+	// Use a buffered channel to ensure goroutines don't block if the response is already received.
+	responses := make(chan *protos.Response, len(nodes))
+	var wg sync.WaitGroup
+	wg.Add(len(nodes))
+
+	for _, node := range nodes {
+		// Capture the variable to avoid closure issues.
+		node := node
+		go func() {
+			defer wg.Done()
+			// Retrieve a connection from the pool.
+			conn, err := s.connPool.GetConn(node)
+			if err != nil {
+				log.Printf("failed to get connection from pool for node %s: %s", node, err.Error())
+				return
+			}
+
+			client := protos.NewBagginsDBServiceClient(conn)
+			// The RPC call will use the cancelable context.
+			res, err := client.HandleRequest(ctx, req.OriginalRequest)
+			if err != nil {
+				log.Printf("Error forwarding request to node %s: %v", node, err)
+				return
+			}
+
+			if res.GetStatus() == 200 {
+				// Use select to avoid sending on the channel if the context is already canceled.
+				select {
+				case responses <- res:
+				case <-ctx.Done():
+					// If the context is canceled, just exit.
+					return
+				}
+			}
+		}()
+	}
+
+	// Wait for the first successful response or the context to be done.
+	var result *protos.Response
+	select {
+	case result = <-responses:
+		// Cancel the context to signal other goroutines to stop their work.
+		cancel()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	// Wait for all goroutines to finish before returning.
+	wg.Wait()
+
+	return result, nil
 }
 
 // Gossip is used for exchanging state with peers.

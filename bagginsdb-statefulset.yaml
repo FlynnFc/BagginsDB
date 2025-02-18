@@ -6,7 +6,7 @@ metadata:
     app: bagginsdb
 spec:
   serviceName: "bagginsdb" # Must match the headless service name
-  replicas: 7
+  replicas: 3
   selector:
     matchLabels:
       app: bagginsdb
@@ -30,4 +30,4 @@ spec:
                   fieldPath: metadata.name
             # All nodes use the first pod as the seed.
             - name: SEED_NODE_ADDRESS
-              value: "bagginsdb-0.bagginsdb:50051"
+              value: "bagginsdb-0.bagginsdb.default.svc.cluster.local:50051"

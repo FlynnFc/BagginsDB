@@ -18,15 +18,15 @@ import (
 func main() {
 	// Retrieve configuration from environment variables.
 	nodeID := os.Getenv("NODE_ID")
-	nodeAddress := fmt.Sprintf("%s.bagginsdb:50051", nodeID)
+	nodeAddress := os.Getenv("NODE_ADDRESS")
+	if nodeAddress == "" {
+		nodeAddress = fmt.Sprintf("%s.bagginsdb.default.svc.cluster.local:50051", nodeID)
+	}
 	seedAddress := os.Getenv("SEED_NODE_ADDRESS") // e.g., "localhost:50052"
 
 	// Provide defaults if not set.
 	if nodeID == "" {
-		nodeID = "node-1"
-	}
-	if nodeAddress == "" {
-		nodeAddress = "localhost:50051"
+		panic("NODE_ID environment variable must be set")
 	}
 
 	// Create our local node with dummy tokens.
@@ -57,7 +57,7 @@ func main() {
 			log.Fatalf("GRPC server error: %v", err)
 		}
 	}()
-
+	log.Println("testing test")
 	// If a seed node is provided (and it's not us), attempt to join the cluster.
 	if seedAddress != "" && seedAddress != nodeAddress {
 		// Pause briefly to allow the seed node to be up.

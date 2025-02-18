@@ -1,6 +1,8 @@
 package database
 
 import (
+	"fmt"
+	"os"
 	"sync"
 
 	"github.com/flynnfc/bagginsdb/logger"
@@ -40,7 +42,12 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 	memtable := NewMemtable()
 
 	// 3. Build your  SSTable manager
-	dir := "sst" // directory to store sst files
+	nodeID := os.Getenv("NODE_ID")
+	if nodeID == "" {
+		l.Fatal("NODE_ID environment variable must be set")
+		panic("NODE_ID environment variable must be set")
+	}
+	dir := fmt.Sprintf("%s/sst", nodeID) // directory to store sst files
 	bloomSize := uint(1000000)
 	indexInterval := uint(10)
 
@@ -105,7 +112,7 @@ func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, val
 }
 
 // Get retrieves one “cell” by (partitionKey, clusteringKeys, columnName).
-func (db *Database) Get(partKey []byte, clustering [][]byte, colName []byte) []byte {
+func (db *Database) Get(partKey []byte, clustering [][]byte, colName []byte) ([]byte, error) {
 	// Check the active memtable
 	val := db.memtable.Get(partKey, clustering, colName)
 	if val == nil && db.oldMemtable != nil {
@@ -117,11 +124,11 @@ func (db *Database) Get(partKey []byte, clustering [][]byte, colName []byte) []b
 		res, err := db.sstManager.Get(partKey, clustering, colName)
 		if err != nil {
 			db.logger.Error("Error reading from SSTableManager", zap.Error(err))
-			return nil
+			return nil, err
 		}
 		val = res
 	}
-	return val
+	return val, nil
 }
 
 func (db *Database) Close() {

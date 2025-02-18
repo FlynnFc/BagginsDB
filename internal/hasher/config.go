@@ -1,4 +1,4 @@
-package node
+package hasher
 
 import "go.uber.org/zap"
 
@@ -8,7 +8,7 @@ const (
 	ALL
 )
 
-type NodeConfig struct {
+type HasherConfig struct {
 	ConsistencyLevel int
 	Replicas         int
 	HashFn           Hash

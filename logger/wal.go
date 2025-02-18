@@ -8,7 +8,6 @@ import (
 )
 
 func InitWAL(filePath string, log *zap.Logger) *wal.WriteAheadLog {
-
 	wal, err := wal.NewWriteAheadLog(&wal.WALOptions{
 		LogDir:            filePath,
 		MaxLogSize:        40 * 1024 * 1024, // 40 MB (log rotation size)

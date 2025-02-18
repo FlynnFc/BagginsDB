@@ -59,7 +59,6 @@ func NewSSTableManager(dir string, bloomSize uint, indexInterval uint, l *zap.Lo
 		logger:            l,
 	}
 	sstables := sm.LoadCurrentSSTables()
-	println("Loaded SSTables ")
 	for i, level := range sstables {
 		sm.logger.Info(fmt.Sprintf("level %d has %d sstables", i, len(level)))
 	}
