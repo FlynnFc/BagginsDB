@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/flynnfc/bagginsdb/pkg/bagginsdb/consistency"
 	"github.com/flynnfc/bagginsdb/pkg/bagginsdb/server"
 	"github.com/flynnfc/bagginsdb/protos"
@@ -26,7 +28,7 @@ func main() {
 	// You can adjust your request to cluster per request. All requests are run through the HandleRequest function.
 	// In this case we are writing "Hello, World!" to the key "key1" with a consistency level of QUORUM.
 	// This means a majority of replicas must acknowledge the write before it is considered successful.
-	server.HandleRequest(nil, &protos.Request{
+	server.HandleRequest(context.Background(), &protos.Request{
 		Type:             protos.RequestType_WRITE,
 		ConsistencyLevel: consistency.QUORUM,
 		PartitionKey:     "key1",
@@ -37,7 +39,7 @@ func main() {
 
 	// In this case we are writing "Dangerous!" to the key "key2" with a consistency level of ONE.
 	// Only one replica must acknowledge the write before it is considered successful. (Not recommended for production)
-	server.HandleRequest(nil, &protos.Request{
+	server.HandleRequest(context.Background(), &protos.Request{
 		Type:             protos.RequestType_WRITE,
 		ConsistencyLevel: consistency.ONE,
 		PartitionKey:     "key2",
@@ -48,7 +50,7 @@ func main() {
 
 	// In this case we are reading the data assigned to the key "key2" with a consistency level of ALL.
 	// For this read to be returned successfully, all nodes must return the same data. (Also not recommended for production in-case replicas are down/not reachable)
-	server.HandleRequest(nil, &protos.Request{
+	server.HandleRequest(context.Background(), &protos.Request{
 		Type:             protos.RequestType_READ,
 		ConsistencyLevel: consistency.ALL,
 		PartitionKey:     "key2",
@@ -66,7 +68,7 @@ func main() {
 	}
 
 	// In the case a server receives a request that has a key that is not in it's hash ring range. It can forward the request and context to the correct node.
-	server.ForwardRequest(nil, &protos.ForwardedRequest{
+	server.ForwardRequest(context.Background(), &protos.ForwardedRequest{
 		OriginalRequest: dummyRequest,
 		FromNode:        localNode,
 	})
