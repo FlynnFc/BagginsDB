@@ -14,7 +14,7 @@ import (
 	"github.com/flynnfc/bagginsdb/protos"
 )
 
-type bagginsServer struct {
+type BagginsServer struct {
 	protos.UnimplementedBagginsDBServiceServer // For forward compatibility.
 	Mu                                         sync.Mutex
 	localNode                                  *protos.Node
@@ -25,7 +25,7 @@ type bagginsServer struct {
 }
 
 // newServer creates a new instance of bagginsDBServer.
-func NewServer(localNode *protos.Node) *bagginsServer {
+func NewServer(localNode *protos.Node) *BagginsServer {
 	logger := logger.InitLogger("bagginsdb")
 	defer logger.Sync()
 
@@ -37,7 +37,7 @@ func NewServer(localNode *protos.Node) *bagginsServer {
 	db := db.NewDatabase(logger, dbConfig)
 	n := hasher.NewHasher(nodeConfig)
 	cPool := NewConnectionPool(5*time.Second, 10*time.Second)
-	s := &bagginsServer{
+	s := &BagginsServer{
 		localNode:    localNode,
 		ClusterNodes: make(map[string]*protos.Node),
 		db:           db,
@@ -50,7 +50,7 @@ func NewServer(localNode *protos.Node) *bagginsServer {
 }
 
 // JoinCluster is called by a new node to join the cluster.
-func (s *bagginsServer) JoinCluster(ctx context.Context, req *protos.JoinClusterRequest) (*protos.JoinClusterResponse, error) {
+func (s *BagginsServer) JoinCluster(ctx context.Context, req *protos.JoinClusterRequest) (*protos.JoinClusterResponse, error) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
@@ -83,7 +83,7 @@ func convertStringSliceToByteSlice(strs []string) [][]byte {
 	return result
 }
 
-func (s *bagginsServer) handleLocalRequest(ctx context.Context, req *protos.Request) (*protos.Response, error) {
+func (s *BagginsServer) handleLocalRequest(ctx context.Context, req *protos.Request) (*protos.Response, error) {
 	var data []byte
 	switch req.Type {
 	case protos.RequestType_READ:
@@ -107,8 +107,8 @@ func (s *bagginsServer) handleLocalRequest(ctx context.Context, req *protos.Requ
 }
 
 // HandleRequest processes a client read/write request.
-func (s *bagginsServer) HandleRequest(ctx context.Context, req *protos.Request) (*protos.Response, error) {
-	nodes := s.controlPlane.GetHash(req.PartitionKey)
+func (s *BagginsServer) HandleRequest(ctx context.Context, req *protos.Request) (*protos.Response, error) {
+	nodes := s.controlPlane.GetNodes(req.PartitionKey)
 	// Determine the required number of responses.
 	numNodes := len(nodes)
 	var required int
@@ -193,7 +193,7 @@ collectLoop:
 	return s.resolveBestResponse(collected), nil
 }
 
-func (s *bagginsServer) resolveBestResponse(responses []*protos.Response) *protos.Response {
+func (s *BagginsServer) resolveBestResponse(responses []*protos.Response) *protos.Response {
 	for _, r := range responses {
 		if r.GetStatus() == 200 {
 			return r
@@ -207,12 +207,12 @@ func (s *bagginsServer) resolveBestResponse(responses []*protos.Response) *proto
 	return nil
 }
 
-func (s *bagginsServer) ForwardRequest(ctx context.Context, req *protos.ForwardedRequest) (*protos.Response, error) {
+func (s *BagginsServer) ForwardRequest(ctx context.Context, req *protos.ForwardedRequest) (*protos.Response, error) {
 	// Create a cancelable context.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	nodes := s.controlPlane.GetHash(req.OriginalRequest.PartitionKey)
+	nodes := s.controlPlane.GetNodes(req.OriginalRequest.PartitionKey)
 	// Use a buffered channel to ensure goroutines don't block if the response is already received.
 	responses := make(chan *protos.Response, len(nodes))
 	var wg sync.WaitGroup
@@ -267,12 +267,12 @@ func (s *bagginsServer) ForwardRequest(ctx context.Context, req *protos.Forwarde
 }
 
 // Gossip is used for exchanging state with peers.
-func (s *bagginsServer) Gossip(ctx context.Context, req *protos.Request) (*protos.Response, error) {
+func (s *BagginsServer) Gossip(ctx context.Context, req *protos.Request) (*protos.Response, error) {
 	return s.handleLocalRequest(ctx, req)
 }
 
 // HeartBeat checks the liveness of a node.
-func (s *bagginsServer) HeartBeat(ctx context.Context, req *protos.HealthCheck) (*protos.Response, error) {
+func (s *BagginsServer) HeartBeat(ctx context.Context, req *protos.HealthCheck) (*protos.Response, error) {
 	node := req.GetNode()
 	log.Printf("HeartBeat: Received heartbeat from node %s", node.GetAddress())
 	return &protos.Response{
@@ -285,7 +285,7 @@ func (s *bagginsServer) HeartBeat(ctx context.Context, req *protos.HealthCheck) 
 // joinClusterClient dials a seed node and sends a JoinCluster request.
 // It retries up to 5 times with exponential backoff.
 // 1s, 2s, 4s, 8s, etc.
-func (s *bagginsServer) JoinClusterClient(seedAddress string, localNode *protos.Node) (*protos.JoinClusterResponse, error) {
+func (s *BagginsServer) JoinClusterClient(seedAddress string, localNode *protos.Node) (*protos.JoinClusterResponse, error) {
 	const maxRetries = 5
 	const baseDelay = 1 * time.Second
 	var resp *protos.JoinClusterResponse
