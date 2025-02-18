@@ -15,13 +15,15 @@ dummyGet:
 	-plaintext \
 	-d '{"partition_key": "my_partition_key", "clustering_keys": ["cluster_key_1", "cluster_key_2"], "column_name": "my_column_name"}' \
 	localhost:8082 \
-	BagginsDBService.Get
+	bagginsdb.BagginsDBService/HandleRequest
+
 
 dummySet:
 	grpcurl \
 	-plaintext \
 	-d '{"partition_key": "my_partition_key", "clustering_keys": ["cluster_key_1", "cluster_key_2"], "column_name": "my_column_name", "value": "my_value"}' \
 	localhost:8082 \
-	BagginsDBService.Set
+	bagginsdb.BagginsDBService/HandleRequest
+
 
 
