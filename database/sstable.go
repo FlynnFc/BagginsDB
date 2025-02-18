@@ -112,8 +112,8 @@ type IndexEntry struct {
 	Offset int64
 }
 
-// SSTable holds in–memory metadata for an SSTable file.
-type SSTable struct {
+// sstable holds in–memory metadata for an sstable file.
+type sstable struct {
 	filePath    string
 	index       []IndexEntry
 	bloom       *bloom.BloomFilter
@@ -123,11 +123,11 @@ type SSTable struct {
 	bufPool     sync.Pool
 }
 
-// WriteSSTable writes a new SSTable file with the provided cells.
+// Writesstable writes a new sstable file with the provided cells.
 // The cells must be sorted in increasing order by their composite key.
 // Every sparseInterval-th cell is recorded in the sparse index.
 // The Bloom filter is sized using expectedItems and falsePositiveRate.
-func WriteSSTable(filePath string, cells []Cell, sparseInterval int, expectedItems int, falsePositiveRate float64) (*SSTable, error) {
+func writeSSTable(filePath string, cells []Cell, sparseInterval int, expectedItems int, falsePositiveRate float64) (*sstable, error) {
 	f, err := os.Create(filePath)
 	if err != nil {
 		return nil, err
@@ -222,7 +222,7 @@ func WriteSSTable(filePath string, cells []Cell, sparseInterval int, expectedIte
 	// dataStart is available for debugging if needed.
 	_ = dataStart
 
-	return &SSTable{
+	return &sstable{
 		filePath:    filePath,
 		index:       indexEntries,
 		bloom:       bf,
@@ -235,8 +235,8 @@ func WriteSSTable(filePath string, cells []Cell, sparseInterval int, expectedIte
 	}, nil
 }
 
-// LoadSSTable loads an SSTable from disk, reconstructing its sparse index and Bloom filter.
-func LoadSSTable(filePath string) (*SSTable, error) {
+// Loadsstable loads an sstable from disk, reconstructing its sparse index and Bloom filter.
+func loadSSTable(filePath string) (*sstable, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -250,7 +250,7 @@ func LoadSSTable(filePath string) (*SSTable, error) {
 	fileSize := fi.Size()
 	// Footer is 8 (indexOffset) + 8 (bfOffset) + 4 (magic) = 20 bytes.
 	if fileSize < 20 {
-		return nil, errors.New("file too small to be a valid SSTable")
+		return nil, errors.New("file too small to be a valid sstable")
 	}
 
 	// Read footer.
@@ -316,7 +316,7 @@ func LoadSSTable(filePath string) (*SSTable, error) {
 		return nil, err
 	}
 
-	sst := &SSTable{
+	sst := &sstable{
 		filePath:    filePath,
 		index:       indexEntries,
 		bloom:       &bf,
@@ -332,7 +332,7 @@ func LoadSSTable(filePath string) (*SSTable, error) {
 
 // Get retrieves a Cell using its composite key components.
 // The caller provides the PartitionKey, ColumnName, and (optionally) ClusteringValues.
-func (s *SSTable) Get(partitionKey, columnName []byte, clusteringValues ...[]byte) (*Cell, error) {
+func (s *sstable) Get(partitionKey, columnName []byte, clusteringValues ...[]byte) (*Cell, error) {
 	// Compose the composite key.
 	cell := Cell{
 		PartitionKey:     partitionKey,
@@ -415,8 +415,8 @@ func (s *SSTable) Get(partitionKey, columnName []byte, clusteringValues ...[]byt
 	return nil, errors.New("key not found")
 }
 
-// ReadAllCells reads all cells from the SSTable data region.
-func (s *SSTable) ReadAllCells() ([]Cell, error) {
+// ReadAllCells reads all cells from the sstable data region.
+func (s *sstable) ReadAllCells() ([]Cell, error) {
 	f, err := os.Open(s.filePath)
 	if err != nil {
 		return nil, err

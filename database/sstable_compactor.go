@@ -9,22 +9,22 @@ import (
 	"sort"
 )
 
-// CompactionManager holds SSTables organized into levels.
-type CompactionManager struct {
-	levels    [][]*SSTable
+// compactionManager holds SSTables organized into levels.
+type compactionManager struct {
+	levels    [][]*sstable
 	threshold int // maximum number of SSTables in a level before compaction triggers
 }
 
-// NewCompactionManager creates a new compaction manager.
-func NewCompactionManager(threshold int) *CompactionManager {
-	return &CompactionManager{
-		levels:    make([][]*SSTable, 1), // start with level 0
+// NewcompactionManager creates a new compaction manager.
+func newCompactionManager(threshold int) *compactionManager {
+	return &compactionManager{
+		levels:    make([][]*sstable, 1), // start with level 0
 		threshold: threshold,
 	}
 }
 
 // AddSSTable adds an SSTable to level 0 and triggers compaction if needed.
-func (cm *CompactionManager) AddSSTable(sst *SSTable) error {
+func (cm *compactionManager) AddSSTable(sst *sstable) error {
 	if sst == nil {
 		return errors.New("nil SSTable provided")
 	}
@@ -44,7 +44,7 @@ func (cm *CompactionManager) AddSSTable(sst *SSTable) error {
 
 			// Ensure the next level exists.
 			if len(cm.levels) < i+2 {
-				cm.levels = append(cm.levels, []*SSTable{})
+				cm.levels = append(cm.levels, []*sstable{})
 			}
 
 			// Append the merged SSTable to the next level.
@@ -56,7 +56,7 @@ func (cm *CompactionManager) AddSSTable(sst *SSTable) error {
 
 // mergeSSTables merges multiple SSTables into one.
 // (For simplicity, this loads all cells into memory, merges and de–duplicates them.)
-func mergeSSTables(ssts []*SSTable, dir string, currLevel int) (*SSTable, error) {
+func mergeSSTables(ssts []*sstable, dir string, currLevel int) (*sstable, error) {
 	println("merging SSTables")
 	var allCells []Cell
 	for _, sst := range ssts {
@@ -93,5 +93,5 @@ func mergeSSTables(ssts []*SSTable, dir string, currLevel int) (*SSTable, error)
 	}
 	println("Merged SSTable has", len(dedup), "cells")
 	// Delete all of the SSTables that were merged?
-	return WriteSSTable(p, dedup, 10, len(dedup), 0.01)
+	return writeSSTable(p, dedup, 10, len(dedup), 0.01)
 }

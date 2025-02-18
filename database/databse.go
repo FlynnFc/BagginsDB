@@ -24,7 +24,7 @@ type Database struct {
 	config            Config
 	memtable          *memtable
 	oldMemtable       *memtable
-	sstManager        *SSTableManager
+	sstManager        *sstableManager
 	mu                sync.RWMutex
 	clock             *truetime.TrueTime
 	compactionMu      sync.Mutex
@@ -51,7 +51,7 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 	bloomSize := uint(1000000)
 	indexInterval := uint(10)
 
-	sstManager, err := NewSSTableManager(dir, bloomSize, indexInterval, l)
+	sstManager, err := newSSTableManager(dir, bloomSize, indexInterval, l)
 	if err != nil {
 		l.Fatal("Failed to create SSTableManager", zap.Error(err))
 		panic(err)

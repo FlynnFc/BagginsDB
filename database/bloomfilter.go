@@ -5,22 +5,22 @@ import (
 	"math"
 )
 
-type BloomFilter struct {
+type bloomFilter struct {
 	m      uint64 // number of bits
 	k      uint32 // number of hash functions
 	bitset []byte // underlying bitset
 	n      uint64 // number of items added
 }
 
-// NewBloomFilter computes optimal parameters and returns a new BloomFilter.
+// NewbloomFilter computes optimal parameters and returns a new bloomFilter.
 // m = - (n * ln(p)) / (ln2)^2, rounded up to a whole number of bytes.
-func NewBloomFilter(expectedItems int, falsePositiveRate float64) *BloomFilter {
+func newBloomFilter(expectedItems int, falsePositiveRate float64) *bloomFilter {
 	n := float64(expectedItems)
 	mFloat := -n * math.Log(falsePositiveRate) / (math.Ln2 * math.Ln2)
 	mBytes := uint64(math.Ceil(mFloat / 8.0))
 	m := mBytes * 8
 	k := uint32(math.Ceil((float64(m) / n) * math.Ln2))
-	return &BloomFilter{
+	return &bloomFilter{
 		m:      m,
 		k:      k,
 		bitset: make([]byte, mBytes),
@@ -29,7 +29,7 @@ func NewBloomFilter(expectedItems int, falsePositiveRate float64) *BloomFilter {
 }
 
 // Add inserts a key into the Bloom filter.
-func (bf *BloomFilter) Add(key []byte) {
+func (bf *bloomFilter) Add(key []byte) {
 	h1, h2 := hashKey(key)
 	for i := uint32(0); i < bf.k; i++ {
 		combined := h1 + uint64(i)*h2
@@ -42,7 +42,7 @@ func (bf *BloomFilter) Add(key []byte) {
 }
 
 // MightContain returns true if the key might be in the filter.
-func (bf *BloomFilter) MightContain(key []byte) bool {
+func (bf *bloomFilter) MightContain(key []byte) bool {
 	h1, h2 := hashKey(key)
 	for i := uint32(0); i < bf.k; i++ {
 		combined := h1 + uint64(i)*h2

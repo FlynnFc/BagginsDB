@@ -9,35 +9,35 @@ import (
 	"go.uber.org/zap"
 )
 
-type SSTableManager struct {
+type sstableManager struct {
 	dir               string
-	CompactionManager *CompactionManager
+	CompactionManager *compactionManager
 	threshhold        int
 	sparseInterval    int
 	fpRate            float32
 	logger            *zap.Logger
 }
 
-func (sm *SSTableManager) LoadCurrentSSTables() [][]*SSTable {
+func (sm *sstableManager) LoadCurrentsstables() [][]*sstable {
 	entries, err := os.ReadDir(sm.dir)
 	if err != nil {
-		sm.logger.Error("Failed to read SSTable dir", zap.Error(err))
+		sm.logger.Error("Failed to read sstable dir", zap.Error(err))
 	}
 
-	sstables := [][]*SSTable{}
-	sstables = append(sstables, []*SSTable{})
+	sstables := [][]*sstable{}
+	sstables = append(sstables, []*sstable{})
 	level := 0
 	for {
 		anyseen := false
 		for _, e := range entries {
 			if strings.HasPrefix(e.Name(), fmt.Sprintf("sst_%d", level)) {
 				anyseen = true
-				sst, err := LoadSSTable(path.Join(sm.dir, e.Name()))
+				sst, err := loadSSTable(path.Join(sm.dir, e.Name()))
 				if err != nil {
-					sm.logger.Error("Failed to load SSTable", zap.Error(err))
+					sm.logger.Error("Failed to load sstable", zap.Error(err))
 				}
 				if len(sstables) < level+1 {
-					sstables = append(sstables, []*SSTable{})
+					sstables = append(sstables, []*sstable{})
 				}
 				sstables[level] = append(sstables[level], sst)
 			}
@@ -50,15 +50,16 @@ func (sm *SSTableManager) LoadCurrentSSTables() [][]*SSTable {
 
 	return sstables
 }
-func NewSSTableManager(dir string, bloomSize uint, indexInterval uint, l *zap.Logger) (*SSTableManager, error) {
-	cm := NewCompactionManager(100)
-	sm := &SSTableManager{
+
+func newSSTableManager(dir string, bloomSize uint, indexInterval uint, l *zap.Logger) (*sstableManager, error) {
+	cm := newCompactionManager(100)
+	sm := &sstableManager{
 		dir:               dir,
 		threshhold:        100,
 		CompactionManager: cm,
 		logger:            l,
 	}
-	sstables := sm.LoadCurrentSSTables()
+	sstables := sm.LoadCurrentsstables()
 	for i, level := range sstables {
 		sm.logger.Info(fmt.Sprintf("level %d has %d sstables", i, len(level)))
 	}
@@ -66,7 +67,7 @@ func NewSSTableManager(dir string, bloomSize uint, indexInterval uint, l *zap.Lo
 	return sm, nil
 }
 
-func (sm *SSTableManager) Get(partKey []byte, clustering [][]byte, colName []byte) ([]byte, error) {
+func (sm *sstableManager) Get(partKey []byte, clustering [][]byte, colName []byte) ([]byte, error) {
 	for _, sst := range sm.CompactionManager.levels {
 		for _, sstable := range sst {
 			if sstable == nil {
@@ -88,7 +89,7 @@ func (sm *SSTableManager) Get(partKey []byte, clustering [][]byte, colName []byt
 	return nil, nil
 }
 
-func (sm *SSTableManager) CreateSSTable(entries []Cell) error {
+func (sm *sstableManager) CreateSSTable(entries []Cell) error {
 	f, err := os.CreateTemp(sm.dir, "sst_0_")
 	if err != nil {
 		return err
@@ -98,15 +99,10 @@ func (sm *SSTableManager) CreateSSTable(entries []Cell) error {
 	if err != nil {
 		return err
 	}
-	sst, err := WriteSSTable(p, entries, 100, len(entries), 0.01)
+	sst, err := writeSSTable(p, entries, 100, len(entries), 0.01)
 	if err != nil {
-		sm.logger.Error("Failed to create SSTable", zap.Error(err))
+		sm.logger.Error("Failed to create sstable", zap.Error(err))
 	}
 	sm.CompactionManager.AddSSTable(sst)
 	return nil
-}
-
-func (sm *SSTableManager) lenPerLevel(level int) int {
-
-	return 0
 }
