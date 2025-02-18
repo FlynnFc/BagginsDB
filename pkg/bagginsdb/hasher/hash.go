@@ -17,6 +17,11 @@ type hashRing struct {
 	sync.RWMutex
 }
 
+// NewHashRing creates a new HashRing instance.
+// we use this to re-direct requests to the correct node in the cluster.
+// It uses consistent hashing to map keys to nodes.
+// We add virtual nodes to the hash ring to ensure a more even distribution.
+// The replicas parameter controls the number of virtual nodes per actual node.
 func NewHashRing(replicas int, fn Hash) *hashRing {
 	m := &hashRing{
 		replicas: replicas,
@@ -30,6 +35,7 @@ func NewHashRing(replicas int, fn Hash) *hashRing {
 	return m
 }
 
+// Add adds nodes to the hash ring.
 func (m *hashRing) Add(nodes ...string) {
 	m.Lock()
 	defer m.Unlock()

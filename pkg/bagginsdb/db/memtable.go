@@ -4,7 +4,11 @@ import (
 	"bytes"
 )
 
-// memtable is an in-memory “table” for wide columns, wrapping SkipList.
+// memtable is an in-memory data structure that stores wide-column entries.
+// It is an abstraction over an underlying data-structure. In our case a skiplist.
+// Usually this is a self-balancing tree like a red-black tree or AVL tree.
+// We use a skiplist because it is simpler to implement and has good performance characteristics.
+// + I've never used one before so I was excited to learn about it.
 type memtable struct {
 	skiplist *skipList
 }
@@ -30,7 +34,10 @@ func (m *memtable) Entries() []struct {
 	return m.skiplist.Entries()
 }
 
-// delimiters for composite keys
+// buildCompositeKey builds a composite key from the partition key, clustering keys and column name.
+// We use this all over the place for searching in the skiplist and for building SSTable keys.
+// The format is:
+// partitionKey + 0x00 + clusteringKey1 + 0x01 + clusteringKey2 + 0x01 + ... + columnName + 0x02
 func buildCompositeKey(part []byte, clustering [][]byte, col []byte) []byte {
 	var buf bytes.Buffer
 	// partition key + 0x00
@@ -50,16 +57,19 @@ func buildCompositeKey(part []byte, clustering [][]byte, col []byte) []byte {
 	return buf.Bytes()
 }
 
+// Put Builds a composite key from the partition key, clustering keys and column name.
+// Then inserts the key and value into the skiplist.
 func (m *memtable) Put(entry Cell) {
 	// build composite key
 	composite := buildCompositeKey(entry.PartitionKey, entry.ClusteringValues, entry.ColumnName)
 	v := Value{
 		Data:      entry.Value,
-		Timestamp: entry.Timestamp,
+		Timestamp: entry.Timestamp, // We keep track of the timestamp to resolve conflicts.
 	}
 	m.skiplist.Set(composite, v)
 }
 
+// Get similarly builds a composite key and then looks up the value in the skiplist.
 func (m *memtable) Get(pk []byte, clustering [][]byte, colName []byte) []byte {
 	composite := buildCompositeKey(pk, clustering, colName)
 	v := m.skiplist.Get(composite)

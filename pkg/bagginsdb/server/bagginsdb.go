@@ -14,11 +14,14 @@ import (
 	"github.com/flynnfc/bagginsdb/protos"
 )
 
+// BagginsServer is the main server struct for BagginsDB.
+// This struct is the highest abstraction available for BagginsDB.
+// It handles the storage engine, the hash ring, node communication, and all things distributed systems.
 type BagginsServer struct {
 	protos.UnimplementedBagginsDBServiceServer // For forward compatibility.
 	Mu                                         sync.Mutex
 	localNode                                  *protos.Node
-	ClusterNodes                               map[string]*protos.Node // Map of node id -> Node
+	ClusterNodes                               map[string]*protos.Node // Map of node id -> Node.
 	db                                         *db.Database
 	controlPlane                               *hasher.Hasher
 	connPool                                   *ConnectionPool
@@ -29,14 +32,17 @@ func NewServer(localNode *protos.Node) *BagginsServer {
 	logger := logger.InitLogger("bagginsdb")
 	defer logger.Sync()
 
-	// Database configuration
 	dbConfig := db.Config{
 		MemTableSize: 1024 * 1024, // 1MB
 	}
-	nodeConfig := &hasher.HasherConfig{ConsistencyLevel: 1, Replicas: 1, Logger: logger}
+
 	db := db.NewDatabase(logger, dbConfig)
+
+	nodeConfig := &hasher.HasherConfig{ConsistencyLevel: 1, Replicas: 1, Logger: logger}
 	n := hasher.NewHasher(nodeConfig)
+
 	cPool := NewConnectionPool(5*time.Second, 10*time.Second)
+
 	s := &BagginsServer{
 		localNode:    localNode,
 		ClusterNodes: make(map[string]*protos.Node),
@@ -162,9 +168,8 @@ func (s *BagginsServer) HandleRequest(ctx context.Context, req *protos.Request) 
 		close(responses)
 	}()
 
-	// Collect responses until we have at least the required number.
 	var collected []*protos.Response
-	// Use a timeout in case some nodes never reply.
+	// TODO: Adjust this to timeout when it hits the p99.9 of the expected response time. and retry
 	timeout := time.After(5 * time.Second)
 
 collectLoop:
@@ -208,7 +213,7 @@ func (s *BagginsServer) resolveBestResponse(responses []*protos.Response) *proto
 }
 
 func (s *BagginsServer) ForwardRequest(ctx context.Context, req *protos.ForwardedRequest) (*protos.Response, error) {
-	// Create a cancelable context.
+	// We create a cancelable context to allow for early exit if we have enough responses.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -231,7 +236,7 @@ func (s *BagginsServer) ForwardRequest(ctx context.Context, req *protos.Forwarde
 			}
 
 			client := protos.NewBagginsDBServiceClient(conn)
-			// The RPC call will use the cancelable context.
+
 			res, err := client.HandleRequest(ctx, req.OriginalRequest)
 			if err != nil {
 				log.Printf("Error forwarding request to node %s: %v", node, err)
@@ -239,7 +244,6 @@ func (s *BagginsServer) ForwardRequest(ctx context.Context, req *protos.Forwarde
 			}
 
 			if res.GetStatus() == 200 {
-				// Use select to avoid sending on the channel if the context is already canceled.
 				select {
 				case responses <- res:
 				case <-ctx.Done():
@@ -282,7 +286,7 @@ func (s *BagginsServer) HeartBeat(ctx context.Context, req *protos.HealthCheck) 
 	}, nil
 }
 
-// joinClusterClient dials a seed node and sends a JoinCluster request.
+// JoinClusterClient dials a seed node and sends a JoinCluster request.
 // It retries up to 5 times with exponential backoff.
 // 1s, 2s, 4s, 8s, etc.
 func (s *BagginsServer) JoinClusterClient(seedAddress string, localNode *protos.Node) (*protos.JoinClusterResponse, error) {

@@ -18,9 +18,6 @@ const (
 	footerMagic = "SSTF"
 )
 
-// Cell represents a single cell in a wide–column store.
-
-// readBytesWithPrefix reads a length-prefixed byte slice.
 // readBytesWithPrefix reads a 4‐byte length prefix and then that many bytes.
 func readBytesWithPrefix(r io.Reader) ([]byte, error) {
 	// Use a fixed 4-byte buffer to read the length.
@@ -67,13 +64,11 @@ func writeCell(w io.Writer, cell *Cell) error {
 	return nil
 }
 
-// readCell reads a Cell from r.
 // readCell reads a Cell from the provided io.Reader.
 func readCell(r io.Reader) (Cell, error) {
 	var cell Cell
 	var err error
 
-	// Read PartitionKey.
 	if cell.PartitionKey, err = readBytesWithPrefix(r); err != nil {
 		return cell, err
 	}
@@ -93,12 +88,10 @@ func readCell(r io.Reader) (Cell, error) {
 		}
 	}
 
-	// Read ColumnName.
 	if cell.ColumnName, err = readBytesWithPrefix(r); err != nil {
 		return cell, err
 	}
 
-	// Read Value.
 	if cell.Value, err = readBytesWithPrefix(r); err != nil {
 		return cell, err
 	}
@@ -106,7 +99,6 @@ func readCell(r io.Reader) (Cell, error) {
 	return cell, nil
 }
 
-// IndexEntry represents a sparse index entry.
 type IndexEntry struct {
 	Key    []byte // The composite key (as encoded by Cell.CompositeKey).
 	Offset int64

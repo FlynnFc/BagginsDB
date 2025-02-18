@@ -14,13 +14,14 @@ type Value struct {
 
 // node is one element of the skipList.
 type node struct {
-	key   []byte // This could be a composite key in a wide-column context
+	key   []byte // This could be a composite key in a wide-column context.
 	value Value
 
-	next []*node // next pointers for each “level” in the skipList
+	next []*node // next pointers for each “level” in the skipList.
 }
 
-// skipList is the data structure that holds nodes in sorted order.
+// skipList is a data structure that allows for fast search, insert and delete operations.
+// It is a probabilistic data structure that uses multiple linked lists to allow for fast search.
 type skipList struct {
 	head  *node
 	level int
@@ -28,9 +29,10 @@ type skipList struct {
 	mu    sync.RWMutex
 }
 
-// NewskipList creates an empty skipList with a head node.
+// newSkipList creates an empty skipList with a head node.
 func newSkipList() *skipList {
 	// We typically fix a maximum level, for example 16 or 32.
+	// TODO: Implement a dynamic maxLevel based on the number of elements in the skipList.
 	const maxLevel = 16
 	head := &node{
 		next: make([]*node, maxLevel),
@@ -58,7 +60,7 @@ func (sl *skipList) Get(key []byte) *Value {
 	defer sl.mu.RUnlock()
 
 	x := sl.head
-	// Traverse from top level down
+	// Traverse from top level down.
 	for i := sl.level - 1; i >= 0; i-- {
 		for x.next[i] != nil && bytes.Compare(x.next[i].key, key) < 0 {
 			x = x.next[i]
@@ -76,11 +78,11 @@ func (sl *skipList) Set(key []byte, val Value) {
 	sl.mu.Lock()
 	defer sl.mu.Unlock()
 
-	// We’ll keep track of nodes we passed along the way (for updating next pointers).
+	// We keep track of nodes we passed along the way (for updating next pointers).
 	update := make([]*node, len(sl.head.next))
 	current := sl.head
 
-	// Start from the highest level and move down
+	// Start from the highest level and move down.
 	for i := sl.level - 1; i >= 0; i-- {
 		for current.next[i] != nil && bytes.Compare(current.next[i].key, key) < 0 {
 			current = current.next[i]
@@ -97,10 +99,10 @@ func (sl *skipList) Set(key []byte, val Value) {
 		return
 	}
 
-	// Key not found: insert a new node
+	// Key not found: insert a new node.
 	newLevel := sl.randomLevel()
 	if newLevel > sl.level {
-		// If our node is taller than current skipList, update skipList level
+		// If our node is taller than current skipList, update skipList level.
 		for i := sl.level; i < newLevel; i++ {
 			update[i] = sl.head
 		}
@@ -111,7 +113,7 @@ func (sl *skipList) Set(key []byte, val Value) {
 		value: val,
 		next:  make([]*node, newLevel),
 	}
-	// Re-wire pointers at each level
+	// Re-wire pointers at each level.
 	for i := 0; i < newLevel; i++ {
 		newNode.next[i] = update[i].next[i]
 		update[i].next[i] = newNode
@@ -127,7 +129,7 @@ func (sl *skipList) Front() *node {
 	return sl.head.next[0]
 }
 
-// Len returns a rough count of nodes in the skipList. (Optional: you can maintain a counter.)
+// Len returns the number of elements in the skipList.
 func (sl *skipList) Len() int {
 	return sl.size
 }

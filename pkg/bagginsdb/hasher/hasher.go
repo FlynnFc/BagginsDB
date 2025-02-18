@@ -6,6 +6,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// Hasher is an abstraction that allows us to add nodes to a hash ring and get the appropriate nodes for a given key.
+// It uses consistent hashing to map keys to nodes.
+// Hasher sits above the hashRing implementation and adds the ability for logging and a better user facing API
 type Hasher struct {
 	consistencyLevel int
 	hashRing         *hashRing

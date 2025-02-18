@@ -22,9 +22,8 @@ func main() {
 	if nodeAddress == "" {
 		nodeAddress = fmt.Sprintf("%s.bagginsdb.default.svc.cluster.local:50051", nodeID)
 	}
-	seedAddress := os.Getenv("SEED_NODE_ADDRESS") // e.g., "localhost:50052"
+	seedAddress := os.Getenv("SEED_NODE_ADDRESS")
 
-	// Provide defaults if not set.
 	if nodeID == "" {
 		panic("NODE_ID environment variable must be set")
 	}
@@ -39,12 +38,17 @@ func main() {
 	// Create a new GRPC server instance.
 	serverImpl := server.NewServer(localNode)
 	opts := []grpc.ServerOption{
+		// For this example we're not requiring authentication.
+		// In a production system, you would want to use a more secure method.
 		grpc.Creds(insecure.NewCredentials()),
 	}
+
 	grpcServer := grpc.NewServer(opts...)
+
 	protos.RegisterBagginsDBServiceServer(grpcServer, serverImpl)
+
+	// Reflection allows us to use grpcurl to interact with the server.
 	reflection.Register(grpcServer)
-	// Start listening.
 	lis, err := net.Listen("tcp", nodeAddress)
 	if err != nil {
 		log.Fatalf("Failed to listen on %s: %v", nodeAddress, err)
@@ -57,18 +61,19 @@ func main() {
 			log.Fatalf("GRPC server error: %v", err)
 		}
 	}()
-	log.Println("testing test")
+
 	// If a seed node is provided (and it's not us), attempt to join the cluster.
 	if seedAddress != "" && seedAddress != nodeAddress {
-		// Pause briefly to allow the seed node to be up.
+		// Pause briefly to allow the seed node to be up incase we're starting at the same time.
 		time.Sleep(2 * time.Second)
+
 		log.Printf("Attempting to join cluster via seed node at %s", seedAddress)
 		resp, err := serverImpl.JoinClusterClient(seedAddress, localNode)
 		if err != nil {
 			log.Printf("Error joining cluster: %v", err)
 		} else {
 			log.Printf("JoinCluster succeeded: %s", resp.Message)
-			// Update our cluster view with nodes returned from the seed.
+			// Update our hash-ring with nodes returned from the seed.
 			serverImpl.Mu.Lock()
 			for _, n := range resp.ClusterNodes {
 				serverImpl.ClusterNodes[n.GetId()] = n

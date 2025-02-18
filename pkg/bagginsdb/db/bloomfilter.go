@@ -5,6 +5,9 @@ import (
 	"math"
 )
 
+// This is my implementation of a bloom filter. It is used to check if a key might be in a set.
+// The bloom filter is a probabilistic data structure that uses multiple hash functions to
+// determine if an element is in a set. It can return false positives, but never false negatives.
 type bloomFilter struct {
 	m      uint64 // number of bits
 	k      uint32 // number of hash functions
@@ -12,7 +15,7 @@ type bloomFilter struct {
 	n      uint64 // number of items added
 }
 
-// NewbloomFilter computes optimal parameters and returns a new bloomFilter.
+// newBloomFilter computes optimal parameters and returns a new bloomFilter.
 // m = - (n * ln(p)) / (ln2)^2, rounded up to a whole number of bytes.
 func newBloomFilter(expectedItems int, falsePositiveRate float64) *bloomFilter {
 	n := float64(expectedItems)
@@ -56,7 +59,7 @@ func (bf *bloomFilter) MightContain(key []byte) bool {
 	return true
 }
 
-// hashKey returns two 64–bit hash values for key using FNV–1a.
+// hashKey returns two 64–bit hash values for key using FNV–64a.
 func hashKey(key []byte) (uint64, uint64) {
 	h1 := fnv.New64a()
 	h1.Write(key)

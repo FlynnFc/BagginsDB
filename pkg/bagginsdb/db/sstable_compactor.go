@@ -12,10 +12,10 @@ import (
 // compactionManager holds SSTables organized into levels.
 type compactionManager struct {
 	levels    [][]*sstable
-	threshold int // maximum number of SSTables in a level before compaction triggers
+	threshold int // maximum number of SSTables in a level before compaction triggers.
 }
 
-// NewcompactionManager creates a new compaction manager.
+// newCompactionManager creates a new compaction manager.
 func newCompactionManager(threshold int) *compactionManager {
 	return &compactionManager{
 		levels:    make([][]*sstable, 1), // start with level 0
@@ -34,6 +34,7 @@ func (cm *compactionManager) AddSSTable(sst *sstable) error {
 	// Iterate over each level.
 	for i, level := range cm.levels {
 		if len(level) >= cm.threshold {
+			// Start compaction.
 			merged, err := mergeSSTables(level, path.Dir(sst.filePath), i)
 			if err != nil {
 				return err
@@ -55,7 +56,6 @@ func (cm *compactionManager) AddSSTable(sst *sstable) error {
 }
 
 // mergeSSTables merges multiple SSTables into one.
-// (For simplicity, this loads all cells into memory, merges and de–duplicates them.)
 func mergeSSTables(ssts []*sstable, dir string, currLevel int) (*sstable, error) {
 	println("merging SSTables")
 	var allCells []Cell
@@ -70,7 +70,7 @@ func mergeSSTables(ssts []*sstable, dir string, currLevel int) (*sstable, error)
 	sort.Slice(allCells, func(i, j int) bool {
 		return bytes.Compare(allCells[i].CompositeKey(), allCells[j].CompositeKey()) < 0
 	})
-	// Deduplicate cells (if keys repeat, keep the last occurrence).
+	// Deduplicate cells (if keys repeat, keep the last occurrence our timestamp has come in handy ☺️).
 	var dedup []Cell
 	seen := make(map[string]bool)
 	for i := len(allCells) - 1; i >= 0; i-- {
@@ -86,12 +86,10 @@ func mergeSSTables(ssts []*sstable, dir string, currLevel int) (*sstable, error)
 		return nil, err
 	}
 	p := path.Join(dir, f.Name())
-	println(p, f.Name())
 	err = f.Close()
 	if err != nil {
 		return nil, err
 	}
-	println("Merged SSTable has", len(dedup), "cells")
-	// Delete all of the SSTables that were merged?
+
 	return writeSSTable(p, dedup, 10, len(dedup), 0.01)
 }

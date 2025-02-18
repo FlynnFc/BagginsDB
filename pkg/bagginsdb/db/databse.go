@@ -10,24 +10,25 @@ import (
 	"go.uber.org/zap"
 )
 
-// Database is our -column DB that manages memtables & SSTables.
+// Database is our underlying storage engine that manages memtables & SSTables.
+// It is fully ACID compliant on it's own, but we would need extra work to make it distributed (See BagginsdbServer).
 type Database struct {
-	logger      *zap.Logger
-	wal         *zap.Logger
-	config      Config
-	memtable    *memtable
-	oldMemtable *memtable
-	sstManager  *sstableManager
-	mu          sync.RWMutex
-	clock       *truetime.TrueTime
-	// compactionMu      sync.Mutex
+	logger            *zap.Logger // Our standard logger. Writes both to file and stdout.
+	wal               *zap.Logger // Write Ahead Log. Ensures we don't lose data on crashes.
+	config            Config
+	memtable          *memtable
+	oldMemtable       *memtable       // Used during flushes.
+	sstManager        *sstableManager // Handles compaction, reading, and writing SSTables.
+	mu                sync.RWMutex
+	clock             *truetime.TrueTime // An attempt at simulating Google's true time clock to eliminate distributed locks.
 	flushMu           sync.Mutex
 	compactionTrigger chan struct{}
 
-	flushThreshold int // how many entries or how big the memtable is before flushing
+	flushThreshold int // how many entries or how big the memtable is before flushing.
 }
 
 // NewDatabase creates a new DB instance, sets up the memtable, sstable manager, etc.
+// Anything that fails in this call will cause a panic. Something is seriously wrong if this fails to run.
 func NewDatabase(l *zap.Logger, c Config) *Database {
 	// 1. Start a TrueTime clock
 	clock := truetime.NewTrueTime(l)
@@ -40,7 +41,7 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 		l.Fatal("NODE_ID environment variable must be set")
 		panic("NODE_ID environment variable must be set")
 	}
-	dir := fmt.Sprintf("%s/sst", nodeID) // directory to store sst files
+	dir := fmt.Sprintf("%s/sst", nodeID) // directory to store sst files.
 	bloomSize := uint(1000000)
 	indexInterval := uint(10)
 
@@ -61,14 +62,17 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 		clock:             clock,
 		wal:               wal,
 		compactionTrigger: make(chan struct{}, 1),
-		flushThreshold:    c.MemTableSize, // e.g. 100KB or 100k entries, up to you
+		flushThreshold:    c.MemTableSize, // Number of entries before we flush.
 	}
 
 	return db
 }
 
 func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, value []byte) {
+	// Write to the write ahead log.
 	db.wal.Info("Put", zap.ByteString("partKey", partKey), zap.ByteStrings("clustering", clustering), zap.ByteString("colName", colName), zap.ByteString("value", value))
+	// Then write to the memtable.
+	// This is a simple write to the memtable. We don't need to worry about the SSTables here.
 	db.memtable.Put(Cell{
 		PartitionKey:     partKey,
 		ClusteringValues: clustering,
@@ -80,10 +84,13 @@ func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, val
 
 	if needFlush {
 		var old *memtable
+		// Instantiate a new memtable so other writes can continue.
 		db.mu.Lock()
 		old = db.memtable
 		db.memtable = newMemtable()
 		db.mu.Unlock()
+		// Flush our write ahead log.
+		// This is a blocking call. We need to ensure that the WAL is synced before we flush the memtable.
 		err := db.wal.Sync()
 		if err != nil {
 			db.logger.Error("Failed to sync WAL", zap.Error(err))
@@ -106,14 +113,14 @@ func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, val
 
 // Get retrieves one “cell” by (partitionKey, clusteringKeys, columnName).
 func (db *Database) Get(partKey []byte, clustering [][]byte, colName []byte) ([]byte, error) {
-	// Check the active memtable
+	// Check the active memtable(s)
 	val := db.memtable.Get(partKey, clustering, colName)
 	if val == nil && db.oldMemtable != nil {
 		// Check old memtable (if there was a recent flush)
 		val = db.oldMemtable.Get(partKey, clustering, colName)
 	}
+	// If there's no luck there we can check the SSTables.
 	if val == nil {
-		// Go to SSTables
 		res, err := db.sstManager.Get(partKey, clustering, colName)
 		if err != nil {
 			db.logger.Error("Error reading from SSTableManager", zap.Error(err))
@@ -124,6 +131,7 @@ func (db *Database) Get(partKey []byte, clustering [][]byte, colName []byte) ([]
 	return val, nil
 }
 
+// Close flushes the memtable(s) and closes any open files/SStables
 func (db *Database) Close() {
 	db.mu.Lock()
 	defer db.mu.Unlock()
@@ -148,4 +156,6 @@ func (db *Database) Close() {
 		}
 		db.oldMemtable = nil
 	}
+	// Finally ensure the WAL is synced.
+	db.wal.Sync()
 }

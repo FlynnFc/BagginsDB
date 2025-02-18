@@ -18,7 +18,7 @@ type sstableManager struct {
 	logger            *zap.Logger
 }
 
-func (sm *sstableManager) LoadCurrentsstables() [][]*sstable {
+func (sm *sstableManager) LoadCurrentSSTables() [][]*sstable {
 	entries, err := os.ReadDir(sm.dir)
 	if err != nil {
 		sm.logger.Error("Failed to read sstable dir", zap.Error(err))
