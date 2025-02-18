@@ -6,13 +6,13 @@ import (
 
 // memtable is an in-memory “table” for wide columns, wrapping SkipList.
 type memtable struct {
-	skiplist *SkipList
+	skiplist *skipList
 }
 
 // NewMemtable creates a new wide memtable.
-func NewMemtable() *memtable {
+func newMemtable() *memtable {
 	return &memtable{
-		skiplist: NewSkipList(),
+		skiplist: newSkipList(),
 	}
 }
 

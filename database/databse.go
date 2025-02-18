@@ -39,7 +39,7 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 	// 1. Start a TrueTime clock
 	clock := truetime.NewTrueTime(l)
 	// 2. Create the primary memtable
-	memtable := NewMemtable()
+	memtable := newMemtable()
 
 	// 3. Build your  SSTable manager
 	nodeID := os.Getenv("NODE_ID")
@@ -89,7 +89,7 @@ func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, val
 		var old *memtable
 		db.mu.Lock()
 		old = db.memtable
-		db.memtable = NewMemtable()
+		db.memtable = newMemtable()
 		db.mu.Unlock()
 		err := db.wal.Sync()
 		if err != nil {

@@ -6,43 +6,43 @@ import (
 	"sync"
 )
 
-// Value represents the data stored in each SkipList node.
+// Value represents the data stored in each skipList node.
 type Value struct {
 	Data      []byte
 	Timestamp int64
 }
 
-// node is one element of the skiplist.
+// node is one element of the skipList.
 type node struct {
 	key   []byte // This could be a composite key in a wide-column context
 	value Value
 
-	next []*node // next pointers for each “level” in the skiplist
+	next []*node // next pointers for each “level” in the skipList
 }
 
-// SkipList is the data structure that holds nodes in sorted order.
-type SkipList struct {
+// skipList is the data structure that holds nodes in sorted order.
+type skipList struct {
 	head  *node
 	level int
 	size  int
 	mu    sync.RWMutex
 }
 
-// NewSkipList creates an empty SkipList with a head node.
-func NewSkipList() *SkipList {
+// NewskipList creates an empty skipList with a head node.
+func NewskipList() *skipList {
 	// We typically fix a maximum level, for example 16 or 32.
 	const maxLevel = 16
 	head := &node{
 		next: make([]*node, maxLevel),
 	}
-	return &SkipList{
+	return &skipList{
 		head:  head,
 		level: 1, // current highest level in use
 	}
 }
 
 // randomLevel decides how tall a new node might be.
-func (sl *SkipList) randomLevel() int {
+func (sl *skipList) randomLevel() int {
 	level := 1
 	// Probability factor for incrementing level
 	const p = 0.25
@@ -53,7 +53,7 @@ func (sl *SkipList) randomLevel() int {
 }
 
 // Get searches for a node by key and returns its Value.
-func (sl *SkipList) Get(key []byte) *Value {
+func (sl *skipList) Get(key []byte) *Value {
 	sl.mu.RLock()
 	defer sl.mu.RUnlock()
 
@@ -72,7 +72,7 @@ func (sl *SkipList) Get(key []byte) *Value {
 }
 
 // Set inserts or updates a key-value pair (storing composite keys if wide-column).
-func (sl *SkipList) Set(key []byte, val Value) {
+func (sl *skipList) Set(key []byte, val Value) {
 	sl.mu.Lock()
 	defer sl.mu.Unlock()
 
@@ -100,7 +100,7 @@ func (sl *SkipList) Set(key []byte, val Value) {
 	// Key not found: insert a new node
 	newLevel := sl.randomLevel()
 	if newLevel > sl.level {
-		// If our node is taller than current skiplist, update skiplist level
+		// If our node is taller than current skipList, update skipList level
 		for i := sl.level; i < newLevel; i++ {
 			update[i] = sl.head
 		}
@@ -119,20 +119,20 @@ func (sl *SkipList) Set(key []byte, val Value) {
 	sl.size++
 }
 
-// Front returns the first data node in the skiplist (lowest level).
-func (sl *SkipList) Front() *node {
+// Front returns the first data node in the skipList (lowest level).
+func (sl *skipList) Front() *node {
 	sl.mu.RLock()
 	defer sl.mu.RUnlock()
 
 	return sl.head.next[0]
 }
 
-// Len returns a rough count of nodes in the skiplist. (Optional: you can maintain a counter.)
-func (sl *SkipList) Len() int {
+// Len returns a rough count of nodes in the skipList. (Optional: you can maintain a counter.)
+func (sl *skipList) Len() int {
 	return sl.size
 }
 
-func (sl *SkipList) Entries() []struct {
+func (sl *skipList) Entries() []struct {
 	Key []byte
 	Val Value
 } {

@@ -15,13 +15,12 @@ import (
 
 type bagginsServer struct {
 	protos.UnimplementedBagginsDBServiceServer // For forward compatibility.
-
-	Mu           sync.Mutex
-	localNode    *protos.Node
-	ClusterNodes map[string]*protos.Node // Map of node id -> Node
-	db           *database.Database
-	controlPlane *hasher.Hasher
-	connPool     *ConnectionPool
+	Mu                                         sync.Mutex
+	localNode                                  *protos.Node
+	ClusterNodes                               map[string]*protos.Node // Map of node id -> Node
+	db                                         *database.Database
+	controlPlane                               *hasher.Hasher
+	connPool                                   *ConnectionPool
 }
 
 // newServer creates a new instance of bagginsDBServer.
