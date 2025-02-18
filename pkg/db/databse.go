@@ -1,4 +1,4 @@
-package database
+package db
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/flynnfc/bagginsdb/logger"
-	"github.com/flynnfc/bagginsdb/truetime"
+	"github.com/flynnfc/bagginsdb/pkg/truetime"
 	"go.uber.org/zap"
 )
 

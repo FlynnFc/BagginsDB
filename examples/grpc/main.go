@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/flynnfc/bagginsdb/pkg/server"
 	"github.com/flynnfc/bagginsdb/protos"
-	"github.com/flynnfc/bagginsdb/server"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"

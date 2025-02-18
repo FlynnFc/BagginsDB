@@ -1,4 +1,4 @@
-package database
+package db
 
 import (
 	"bytes"
@@ -29,7 +29,7 @@ type skipList struct {
 }
 
 // NewskipList creates an empty skipList with a head node.
-func NewskipList() *skipList {
+func newSkipList() *skipList {
 	// We typically fix a maximum level, for example 16 or 32.
 	const maxLevel = 16
 	head := &node{

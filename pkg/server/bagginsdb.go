@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/flynnfc/bagginsdb/database"
-	"github.com/flynnfc/bagginsdb/hasher"
 	"github.com/flynnfc/bagginsdb/logger"
+	"github.com/flynnfc/bagginsdb/pkg/db"
+	"github.com/flynnfc/bagginsdb/pkg/hasher"
 	"github.com/flynnfc/bagginsdb/protos"
 )
 
@@ -18,7 +18,7 @@ type bagginsServer struct {
 	Mu                                         sync.Mutex
 	localNode                                  *protos.Node
 	ClusterNodes                               map[string]*protos.Node // Map of node id -> Node
-	db                                         *database.Database
+	db                                         *db.Database
 	controlPlane                               *hasher.Hasher
 	connPool                                   *ConnectionPool
 }
@@ -29,11 +29,11 @@ func NewServer(localNode *protos.Node) *bagginsServer {
 	defer logger.Sync()
 
 	// Database configuration
-	dbConfig := database.Config{
+	dbConfig := db.Config{
 		Host: "localhost",
 	}
 	nodeConfig := &hasher.HasherConfig{ConsistencyLevel: 1, Replicas: 1, Logger: logger}
-	db := database.NewDatabase(logger, dbConfig)
+	db := db.NewDatabase(logger, dbConfig)
 	n := hasher.NewHasher(nodeConfig)
 	cPool := NewConnectionPool(5*time.Second, 10*time.Second)
 	s := &bagginsServer{
