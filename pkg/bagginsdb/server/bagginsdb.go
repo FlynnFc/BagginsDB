@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/flynnfc/bagginsdb/logger"
-	"github.com/flynnfc/bagginsdb/pkg/db"
-	"github.com/flynnfc/bagginsdb/pkg/hasher"
+	"github.com/flynnfc/bagginsdb/pkg/bagginsdb/db"
+	"github.com/flynnfc/bagginsdb/pkg/bagginsdb/hasher"
 	"github.com/flynnfc/bagginsdb/protos"
 )
 

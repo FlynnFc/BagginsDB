@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/flynnfc/bagginsdb/logger"
-	"github.com/flynnfc/bagginsdb/pkg/truetime"
+	"github.com/flynnfc/bagginsdb/pkg/bagginsdb/truetime"
 	"go.uber.org/zap"
 )
 
