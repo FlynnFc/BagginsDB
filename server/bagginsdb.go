@@ -11,7 +11,6 @@ import (
 	"github.com/flynnfc/bagginsdb/hasher"
 	"github.com/flynnfc/bagginsdb/logger"
 	"github.com/flynnfc/bagginsdb/protos"
-	"google.golang.org/grpc"
 )
 
 type bagginsServer struct {
@@ -25,7 +24,7 @@ type bagginsServer struct {
 	connPool     *ConnectionPool
 }
 
-// newServer creates a new instance of bagginsServer.
+// newServer creates a new instance of bagginsDBServer.
 func NewServer(localNode *protos.Node) *bagginsServer {
 	logger := logger.InitLogger("bagginsdb")
 	defer logger.Sync()
@@ -109,8 +108,6 @@ func (s *bagginsServer) handleLocalRequest(ctx context.Context, req *protos.Requ
 
 // HandleRequest processes a client read/write request.
 func (s *bagginsServer) HandleRequest(ctx context.Context, req *protos.Request) (*protos.Response, error) {
-	// For demonstration, we simply log the request and return a dummy response.
-	log.Printf("HandleRequest: Received %v request for partition key: %s", req.GetType(), req.GetPartitionKey())
 	nodes := s.controlPlane.GetHash(req.PartitionKey)
 	// Determine the required number of responses.
 	numNodes := len(nodes)
@@ -271,13 +268,7 @@ func (s *bagginsServer) ForwardRequest(ctx context.Context, req *protos.Forwarde
 
 // Gossip is used for exchanging state with peers.
 func (s *bagginsServer) Gossip(ctx context.Context, req *protos.Request) (*protos.Response, error) {
-	log.Printf("Gossip: Received gossip message for partition key: %s", req.GetPartitionKey())
-	// For demo purposes, simply echo back a response.
-	return &protos.Response{
-		Status:  200,
-		Data:    []byte("Gossip processed"),
-		Message: "OK",
-	}, nil
+	return s.handleLocalRequest(ctx, req)
 }
 
 // HeartBeat checks the liveness of a node.
@@ -292,23 +283,40 @@ func (s *bagginsServer) HeartBeat(ctx context.Context, req *protos.HealthCheck) 
 }
 
 // joinClusterClient dials a seed node and sends a JoinCluster request.
-func JoinClusterClient(seedAddress string, localNode *protos.Node) (*protos.JoinClusterResponse, error) {
-	conn, err := grpc.Dial(seedAddress, grpc.WithInsecure())
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial seed node: %v", err)
-	}
-	defer conn.Close()
+// It retries up to 5 times with exponential backoff.
+// 1s, 2s, 4s, 8s, etc.
+func (s *bagginsServer) JoinClusterClient(seedAddress string, localNode *protos.Node) (*protos.JoinClusterResponse, error) {
+	const maxRetries = 5
+	const baseDelay = 1 * time.Second
+	var resp *protos.JoinClusterResponse
+	var err error
 
-	client := protos.NewBagginsDBServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	for i := 0; i < maxRetries; i++ {
+		// Try to get a connection from the pool.
+		conn, err := s.connPool.GetConn(seedAddress)
+		if err != nil {
+			delay := baseDelay * time.Duration(1<<i)
+			log.Printf("failed to get connection from pool for node %s: %s. Retrying in %v...", seedAddress, err.Error(), delay)
+			time.Sleep(delay)
+			continue
+		}
 
-	req := &protos.JoinClusterRequest{
-		Node: localNode,
+		// Create a client and execute the JoinCluster RPC.
+		client := protos.NewBagginsDBServiceClient(conn)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		resp, err = client.JoinCluster(ctx, &protos.JoinClusterRequest{Node: localNode})
+		defer cancel() // Ensure the context is canceled.
+
+		if err != nil {
+			delay := baseDelay * time.Duration(1<<i)
+			log.Printf("join cluster RPC error: %v. Retrying in %v...", err, delay)
+			time.Sleep(delay)
+			continue
+		}
+
+		// Success!
+		return resp, nil
 	}
-	resp, err := client.JoinCluster(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("join cluster RPC error: %v", err)
-	}
-	return resp, nil
+
+	return nil, fmt.Errorf("failed to join cluster after %d retries: %v", maxRetries, err)
 }

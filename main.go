@@ -63,7 +63,7 @@ func main() {
 		// Pause briefly to allow the seed node to be up.
 		time.Sleep(2 * time.Second)
 		log.Printf("Attempting to join cluster via seed node at %s", seedAddress)
-		resp, err := server.JoinClusterClient(seedAddress, localNode)
+		resp, err := serverImpl.JoinClusterClient(seedAddress, localNode)
 		if err != nil {
 			log.Printf("Error joining cluster: %v", err)
 		} else {
