@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
+
+	"github.com/flynnfc/bagginsdb/pkg/bagginsdb/truetime"
 )
 
 // Cell represents a single cell in a wide–column store.
@@ -12,7 +14,7 @@ type Cell struct {
 	ClusteringValues [][]byte
 	ColumnName       []byte
 	Value            []byte
-	Timestamp        int64
+	Timestamp        truetime.Interval
 }
 
 // CompositeKey returns a byte slice that uniquely identifies the cell by

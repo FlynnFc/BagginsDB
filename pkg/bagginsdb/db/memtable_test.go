@@ -3,7 +3,14 @@ package db
 import (
 	"bytes"
 	"testing"
+	"time"
+
+	"github.com/flynnfc/bagginsdb/pkg/bagginsdb/truetime"
 )
+
+func compareIntervals(a, b truetime.Interval) bool {
+	return a.Earliest.Equal(b.Earliest) && a.Latest.Equal(b.Latest)
+}
 
 // TestNewMemtable verifies that newMemtable creates a memtable with a non-nil skiplist.
 func TestNewMemtable(t *testing.T) {
@@ -23,12 +30,17 @@ func TestNewMemtable(t *testing.T) {
 func TestMemtablePutAndGet(t *testing.T) {
 	mt := newMemtable()
 
+	// Create a small interval around a base time.
+	base := time.Unix(12345, 0)
 	cell := Cell{
 		PartitionKey:     []byte("pk1"),
 		ClusteringValues: [][]byte{[]byte("ck1")},
 		ColumnName:       []byte("col1"),
 		Value:            []byte("value1"),
-		Timestamp:        12345,
+		Timestamp: truetime.Interval{
+			Earliest: base,
+			Latest:   base.Add(time.Millisecond * 10),
+		},
 	}
 
 	mt.Put(cell)
@@ -55,21 +67,30 @@ func TestMemtableMultipleCells(t *testing.T) {
 			ClusteringValues: [][]byte{[]byte("ck1")},
 			ColumnName:       []byte("colA"),
 			Value:            []byte("A1"),
-			Timestamp:        100,
+			Timestamp: truetime.Interval{
+				Earliest: time.Unix(100, 0),
+				Latest:   time.Unix(100, 0).Add(time.Second),
+			},
 		},
 		{
 			PartitionKey:     []byte("pk1"),
 			ClusteringValues: [][]byte{[]byte("ck2")},
 			ColumnName:       []byte("colB"),
 			Value:            []byte("B1"),
-			Timestamp:        101,
+			Timestamp: truetime.Interval{
+				Earliest: time.Unix(101, 0),
+				Latest:   time.Unix(101, 0).Add(time.Second),
+			},
 		},
 		{
 			PartitionKey:     []byte("pk2"),
 			ClusteringValues: [][]byte{[]byte("ck1"), []byte("ck2")},
 			ColumnName:       []byte("colX"),
 			Value:            []byte("X1"),
-			Timestamp:        200,
+			Timestamp: truetime.Interval{
+				Earliest: time.Unix(200, 0),
+				Latest:   time.Unix(200, 0).Add(time.Second),
+			},
 		},
 	}
 
@@ -110,14 +131,20 @@ func TestMemtableEntries(t *testing.T) {
 			ClusteringValues: [][]byte{[]byte("ck1")},
 			ColumnName:       []byte("col1"),
 			Value:            []byte("v1"),
-			Timestamp:        111,
+			Timestamp: truetime.Interval{
+				Earliest: time.Unix(111, 0),
+				Latest:   time.Unix(111, 0).Add(time.Millisecond),
+			},
 		},
 		{
 			PartitionKey:     []byte("pkB"),
 			ClusteringValues: [][]byte{[]byte("ck2")},
 			ColumnName:       []byte("col2"),
 			Value:            []byte("v2"),
-			Timestamp:        222,
+			Timestamp: truetime.Interval{
+				Earliest: time.Unix(222, 0),
+				Latest:   time.Unix(222, 0).Add(time.Millisecond),
+			},
 		},
 	}
 
@@ -130,12 +157,11 @@ func TestMemtableEntries(t *testing.T) {
 		t.Fatalf("Expected %d entries, got %d", len(cells), len(entries))
 	}
 
-	// Quick check that keys/values align with what's expected
+	// Quick check that keys/values align with what's expected by matching Value.Data and Value.Interval.
 	for _, kv := range entries {
 		found := false
 		for _, c := range cells {
-			// A real check might parse composite keys. For simplicity here, compare length of Data and Timestamp.
-			if kv.Val.Timestamp == c.Timestamp && bytes.Equal(kv.Val.Data, c.Value) {
+			if bytes.Equal(kv.Val.Data, c.Value) && compareIntervals(kv.Val.Timestamp, c.Timestamp) {
 				found = true
 				break
 			}
@@ -157,14 +183,20 @@ func TestMemtableToColumnEntries(t *testing.T) {
 			ClusteringValues: [][]byte{[]byte("ck1"), []byte("ck2")},
 			ColumnName:       []byte("colA"),
 			Value:            []byte("valA"),
-			Timestamp:        101,
+			Timestamp: truetime.Interval{
+				Earliest: time.Unix(101, 0),
+				Latest:   time.Unix(101, 0).Add(time.Millisecond),
+			},
 		},
 		{
 			PartitionKey:     []byte("pk2"),
 			ClusteringValues: [][]byte{[]byte("ckX")},
 			ColumnName:       []byte("colB"),
 			Value:            []byte("valB"),
-			Timestamp:        202,
+			Timestamp: truetime.Interval{
+				Earliest: time.Unix(202, 0),
+				Latest:   time.Unix(202, 0).Add(time.Millisecond),
+			},
 		},
 	}
 
@@ -181,12 +213,11 @@ func TestMemtableToColumnEntries(t *testing.T) {
 	for _, ce := range columnEntries {
 		found := false
 		for _, original := range cells {
-			// Match on all fields
 			if bytes.Equal(ce.PartitionKey, original.PartitionKey) &&
 				compareClustering(ce.ClusteringValues, original.ClusteringValues) &&
 				bytes.Equal(ce.ColumnName, original.ColumnName) &&
 				bytes.Equal(ce.Value, original.Value) &&
-				ce.Timestamp == original.Timestamp {
+				compareIntervals(ce.Timestamp, original.Timestamp) {
 				found = true
 				break
 			}
@@ -197,8 +228,7 @@ func TestMemtableToColumnEntries(t *testing.T) {
 	}
 }
 
-// TestBuildAndParseCompositeKey ensures buildCompositeKey and parseCompositeKey
-// produce compatible results.
+// TestBuildAndParseCompositeKey ensures buildCompositeKey and parseCompositeKey produce compatible results.
 func TestBuildAndParseCompositeKey(t *testing.T) {
 	partitionKey := []byte("partition")
 	clusteringVals := [][]byte{

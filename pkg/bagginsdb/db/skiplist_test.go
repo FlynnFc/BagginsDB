@@ -4,140 +4,237 @@ import (
 	"bytes"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/flynnfc/bagginsdb/pkg/bagginsdb/truetime"
+	// Adjust the import path for truetime if needed.
+	// If truetime.Interval is defined in this package, you can omit this import.
+	// "yourmodule/truetime"
 )
 
-// TestNewSkipList checks the basic properties of a newly created skipList.
+// TestNewSkipList checks the basic properties of a newly created skiplist.
 func TestNewSkipList(t *testing.T) {
 	sl := newSkipList()
 	if sl == nil {
-		t.Fatal("Expected a non-nil skipList")
+		t.Fatal("Expected non-nil skiplist")
 	}
 	if sl.level != 1 {
-		t.Errorf("Expected level=1 for new skipList, got %d", sl.level)
+		t.Errorf("Expected initial level=1, got %d", sl.level)
 	}
 	if sl.Len() != 0 {
-		t.Errorf("Expected an empty skipList, got Len()=%d", sl.Len())
+		t.Errorf("Expected empty skiplist, got Len()=%d", sl.Len())
 	}
 	if sl.head == nil {
-		t.Errorf("Expected a non-nil head node")
+		t.Error("Expected non-nil head node")
 	}
 	if len(sl.head.next) == 0 {
-		t.Errorf("Expected the head node to have next pointers, found none")
+		t.Error("Expected head node to have next pointers")
 	}
 }
 
-// TestSkipListSetAndGetSingle verifies Set() and Get() for a single key-value pair.
+// TestSkipListSetAndGetSingle verifies that a single key-value pair can be set and retrieved.
 func TestSkipListSetAndGetSingle(t *testing.T) {
 	sl := newSkipList()
 
-	key := []byte("foo")
-	val := Value{Data: []byte("bar"), Timestamp: 100}
+	// Create a fixed trusted interval.
+	earliest := time.Unix(100, 0)
+	latest := earliest.Add(1 * time.Second)
+	val := Value{
+		Data: []byte("bar"),
+		Timestamp: truetime.Interval{
+			Earliest: earliest,
+			Latest:   latest,
+		},
+	}
 
+	key := []byte("foo")
 	sl.Set(key, val)
 
-	got := sl.Get(key)
-	if got == nil {
-		t.Fatalf("Expected to get a value for key=%q, got nil", key)
+	retrieved := sl.Get(key)
+	if retrieved == nil {
+		t.Fatalf("Expected value for key %q, got nil", key)
 	}
-	if !bytes.Equal(got.Data, val.Data) {
-		t.Errorf("Got Data=%q, expected %q", got.Data, val.Data)
+	if !bytes.Equal(retrieved.Data, val.Data) {
+		t.Errorf("For key %q, expected Data %q, got %q", key, val.Data, retrieved.Data)
 	}
-	if got.Timestamp != val.Timestamp {
-		t.Errorf("Got Timestamp=%d, expected %d", got.Timestamp, val.Timestamp)
+	if !retrieved.Timestamp.Earliest.Equal(val.Timestamp.Earliest) {
+		t.Errorf("For key %q, expected Earliest %v, got %v", key, val.Timestamp.Earliest, retrieved.Timestamp.Earliest)
+	}
+	if !retrieved.Timestamp.Latest.Equal(val.Timestamp.Latest) {
+		t.Errorf("For key %q, expected Latest %v, got %v", key, val.Timestamp.Latest, retrieved.Timestamp.Latest)
 	}
 }
 
-// TestSkipListSetAndGetMultiple checks insertion and retrieval of multiple keys in sorted order.
+// TestSkipListSetAndGetMultiple verifies insertion and retrieval of multiple key-value pairs.
 func TestSkipListSetAndGetMultiple(t *testing.T) {
 	sl := newSkipList()
 
-	keys := [][]byte{[]byte("alpha"), []byte("bravo"), []byte("charlie"), []byte("delta")}
+	keys := [][]byte{
+		[]byte("alpha"),
+		[]byte("bravo"),
+		[]byte("charlie"),
+		[]byte("delta"),
+	}
 	values := []Value{
-		{Data: []byte("A"), Timestamp: 1},
-		{Data: []byte("B"), Timestamp: 2},
-		{Data: []byte("C"), Timestamp: 3},
-		{Data: []byte("D"), Timestamp: 4},
+		{
+			Data: []byte("A"),
+			Timestamp: truetime.Interval{
+				Earliest: time.Unix(1, 0),
+				Latest:   time.Unix(1, 0).Add(time.Second),
+			},
+		},
+		{
+			Data: []byte("B"),
+			Timestamp: truetime.Interval{
+				Earliest: time.Unix(2, 0),
+				Latest:   time.Unix(2, 0).Add(time.Second),
+			},
+		},
+		{
+			Data: []byte("C"),
+			Timestamp: truetime.Interval{
+				Earliest: time.Unix(3, 0),
+				Latest:   time.Unix(3, 0).Add(time.Second),
+			},
+		},
+		{
+			Data: []byte("D"),
+			Timestamp: truetime.Interval{
+				Earliest: time.Unix(4, 0),
+				Latest:   time.Unix(4, 0).Add(time.Second),
+			},
+		},
 	}
 
-	// Insert the key-value pairs
+	// Insert each key-value pair.
 	for i, k := range keys {
 		sl.Set(k, values[i])
 	}
 
-	// Verify retrieval
+	// Verify each key-value pair is retrievable.
 	for i, k := range keys {
 		got := sl.Get(k)
 		if got == nil {
-			t.Fatalf("Expected value for key=%q, got nil", k)
+			t.Fatalf("Expected value for key %q, got nil", k)
 		}
 		if !bytes.Equal(got.Data, values[i].Data) {
-			t.Errorf("For key=%q, got data=%q, expected %q", k, got.Data, values[i].Data)
+			t.Errorf("For key %q, expected Data %q, got %q", k, values[i].Data, got.Data)
 		}
-		if got.Timestamp != values[i].Timestamp {
-			t.Errorf("For key=%q, got timestamp=%d, expected %d", k, got.Timestamp, values[i].Timestamp)
+		if !got.Timestamp.Earliest.Equal(values[i].Timestamp.Earliest) {
+			t.Errorf("For key %q, expected Earliest %v, got %v", k, values[i].Timestamp.Earliest, got.Timestamp.Earliest)
+		}
+		if !got.Timestamp.Latest.Equal(values[i].Timestamp.Latest) {
+			t.Errorf("For key %q, expected Latest %v, got %v", k, values[i].Timestamp.Latest, got.Timestamp.Latest)
 		}
 	}
 }
 
-// TestSkipListUpdateTimestamp ensures that updating an existing key with a newer timestamp overwrites it.
+// TestSkipListUpdateTimestamp ensures that updating an existing key with a newer interval overwrites the value.
 func TestSkipListUpdateTimestamp(t *testing.T) {
 	sl := newSkipList()
 
 	key := []byte("myKey")
-	oldVal := Value{Data: []byte("oldData"), Timestamp: 50}
-	newVal := Value{Data: []byte("newData"), Timestamp: 100}
+	oldEarliest := time.Unix(50, 0)
+	oldLatest := oldEarliest.Add(time.Second)
+	newEarliest := time.Unix(100, 0)
+	newLatest := newEarliest.Add(time.Second)
+	oldVal := Value{
+		Data: []byte("oldData"),
+		Timestamp: truetime.Interval{
+			Earliest: oldEarliest,
+			Latest:   oldLatest,
+		},
+	}
+	newVal := Value{
+		Data: []byte("newData"),
+		Timestamp: truetime.Interval{
+			Earliest: newEarliest,
+			Latest:   newLatest,
+		},
+	}
 
-	// Insert older value first
+	// Insert initial value.
 	sl.Set(key, oldVal)
 
-	// Try to update with a newer timestamp
+	// Update with a newer interval.
 	sl.Set(key, newVal)
-
 	got := sl.Get(key)
 	if got == nil {
-		t.Fatalf("Expected to find key=%q after update, got nil", key)
+		t.Fatalf("Expected key %q after update, got nil", key)
 	}
 	if !bytes.Equal(got.Data, newVal.Data) {
-		t.Errorf("Expected Data=%q, got %q", newVal.Data, got.Data)
+		t.Errorf("For key %q, expected Data %q, got %q", key, newVal.Data, got.Data)
 	}
-	if got.Timestamp != newVal.Timestamp {
-		t.Errorf("Expected Timestamp=%d, got %d", newVal.Timestamp, got.Timestamp)
+	if !got.Timestamp.Earliest.Equal(newVal.Timestamp.Earliest) {
+		t.Errorf("For key %q, expected Earliest %v, got %v", key, newVal.Timestamp.Earliest, got.Timestamp.Earliest)
+	}
+	if !got.Timestamp.Latest.Equal(newVal.Timestamp.Latest) {
+		t.Errorf("For key %q, expected Latest %v, got %v", key, newVal.Timestamp.Latest, got.Timestamp.Latest)
 	}
 
-	// Try to update with an older timestamp, should NOT overwrite
-	olderVal := Value{Data: []byte("olderData"), Timestamp: 10}
+	// Attempt to update with an older interval; it should NOT overwrite.
+	olderEarliest := time.Unix(10, 0)
+	olderLatest := olderEarliest.Add(time.Second)
+	olderVal := Value{
+		Data: []byte("olderData"),
+		Timestamp: truetime.Interval{
+			Earliest: olderEarliest,
+			Latest:   olderLatest,
+		},
+	}
 	sl.Set(key, olderVal)
 	got2 := sl.Get(key)
 	if got2 == nil {
-		t.Fatalf("Expected key=%q to still exist", key)
+		t.Fatalf("Expected key %q to still exist", key)
 	}
-	if bytes.Equal(got2.Data, olderVal.Data) {
-		t.Errorf("Did not expect skipList to overwrite with older timestamp. Got data=%q", got2.Data)
-	}
-	if got2.Timestamp == olderVal.Timestamp {
-		t.Errorf("Did not expect skipList to overwrite with older timestamp. Got timestamp=%d", got2.Timestamp)
+	if bytes.Equal(got2.Data, olderVal.Data) || got2.Timestamp.Earliest.Equal(olderVal.Timestamp.Earliest) {
+		t.Errorf("Skiplist should not overwrite with an older Timestamp. Got Data %q and Earliest %v", got2.Data, got2.Timestamp.Earliest)
 	}
 }
 
-// TestSkipListLen verifies that the size counter is correct.
+// TestSkipListLen verifies that the length of the skiplist is correctly maintained.
 func TestSkipListLen(t *testing.T) {
 	sl := newSkipList()
 	if sl.Len() != 0 {
-		t.Errorf("Expected skipList to be empty initially, got Len()=%d", sl.Len())
+		t.Errorf("Expected empty skiplist initially, got Len()=%d", sl.Len())
 	}
 
-	sl.Set([]byte("k1"), Value{Data: []byte("v1"), Timestamp: 1})
-	sl.Set([]byte("k2"), Value{Data: []byte("v2"), Timestamp: 2})
-	sl.Set([]byte("k3"), Value{Data: []byte("v3"), Timestamp: 3})
+	sl.Set([]byte("k1"), Value{
+		Data: []byte("v1"),
+		Timestamp: truetime.Interval{
+			Earliest: time.Unix(1, 0),
+			Latest:   time.Unix(1, 0).Add(time.Second),
+		},
+	})
+	sl.Set([]byte("k2"), Value{
+		Data: []byte("v2"),
+		Timestamp: truetime.Interval{
+			Earliest: time.Unix(2, 0),
+			Latest:   time.Unix(2, 0).Add(time.Second),
+		},
+	})
+	sl.Set([]byte("k3"), Value{
+		Data: []byte("v3"),
+		Timestamp: truetime.Interval{
+			Earliest: time.Unix(3, 0),
+			Latest:   time.Unix(3, 0).Add(time.Second),
+		},
+	})
 
 	if sl.Len() != 3 {
-		t.Errorf("Expected skipList length=3, got %d", sl.Len())
+		t.Errorf("Expected skiplist length=3, got %d", sl.Len())
 	}
 
-	// Insert a duplicate key (should not increment size)
-	sl.Set([]byte("k2"), Value{Data: []byte("newV2"), Timestamp: 10})
+	// Updating an existing key should not change the length.
+	sl.Set([]byte("k2"), Value{
+		Data: []byte("newV2"),
+		Timestamp: truetime.Interval{
+			Earliest: time.Unix(10, 0),
+			Latest:   time.Unix(10, 0).Add(time.Second),
+		},
+	})
 	if sl.Len() != 3 {
-		t.Errorf("Expected skipList length to remain 3 after updating an existing key, got %d", sl.Len())
+		t.Errorf("Expected skiplist length to remain 3 after updating an existing key, got %d", sl.Len())
 	}
 }
 
@@ -145,29 +242,40 @@ func TestSkipListLen(t *testing.T) {
 func TestSkipListFront(t *testing.T) {
 	sl := newSkipList()
 
-	keys := [][]byte{[]byte("alpha"), []byte("bravo"), []byte("charlie")}
-	values := []Value{
-		{Data: []byte("A"), Timestamp: 10},
-		{Data: []byte("B"), Timestamp: 20},
-		{Data: []byte("C"), Timestamp: 30},
-	}
-
-	// Insert in a shuffled order to ensure sorting is tested
-	sl.Set(keys[1], values[1]) // bravo
-	sl.Set(keys[2], values[2]) // charlie
-	sl.Set(keys[0], values[0]) // alpha
+	// Insert keys in a non-sorted order.
+	sl.Set([]byte("bravo"), Value{
+		Data: []byte("B"),
+		Timestamp: truetime.Interval{
+			Earliest: time.Unix(20, 0),
+			Latest:   time.Unix(20, 0).Add(time.Second),
+		},
+	})
+	sl.Set([]byte("charlie"), Value{
+		Data: []byte("C"),
+		Timestamp: truetime.Interval{
+			Earliest: time.Unix(30, 0),
+			Latest:   time.Unix(30, 0).Add(time.Second),
+		},
+	})
+	sl.Set([]byte("alpha"), Value{
+		Data: []byte("A"),
+		Timestamp: truetime.Interval{
+			Earliest: time.Unix(10, 0),
+			Latest:   time.Unix(10, 0).Add(time.Second),
+		},
+	})
 
 	front := sl.Front()
 	if front == nil {
-		t.Fatal("Expected front to be non-nil after inserts")
+		t.Fatal("Expected non-nil front after inserts")
 	}
-	// The smallest key in lexical order is "alpha"
-	if !bytes.Equal(front.key, []byte("alpha")) {
-		t.Errorf("Expected front key=%q, got %q", "alpha", front.key)
+	expectedKey := []byte("alpha")
+	if !bytes.Equal(front.key, expectedKey) {
+		t.Errorf("Expected front key %q, got %q", expectedKey, front.key)
 	}
 }
 
-// TestSkipListEntries verifies we can retrieve all (Key, Val) pairs in ascending order.
+// TestSkipListEntries verifies that all key-value pairs can be retrieved in sorted order.
 func TestSkipListEntries(t *testing.T) {
 	sl := newSkipList()
 
@@ -175,9 +283,36 @@ func TestSkipListEntries(t *testing.T) {
 		key []byte
 		val Value
 	}{
-		{[]byte("cat"), Value{Data: []byte("C"), Timestamp: 3}},
-		{[]byte("apple"), Value{Data: []byte("A"), Timestamp: 1}},
-		{[]byte("banana"), Value{Data: []byte("B"), Timestamp: 2}},
+		{
+			key: []byte("cat"),
+			val: Value{
+				Data: []byte("C"),
+				Timestamp: truetime.Interval{
+					Earliest: time.Unix(3, 0),
+					Latest:   time.Unix(3, 0).Add(time.Second),
+				},
+			},
+		},
+		{
+			key: []byte("apple"),
+			val: Value{
+				Data: []byte("A"),
+				Timestamp: truetime.Interval{
+					Earliest: time.Unix(1, 0),
+					Latest:   time.Unix(1, 0).Add(time.Second),
+				},
+			},
+		},
+		{
+			key: []byte("banana"),
+			val: Value{
+				Data: []byte("B"),
+				Timestamp: truetime.Interval{
+					Earliest: time.Unix(2, 0),
+					Latest:   time.Unix(2, 0).Add(time.Second),
+				},
+			},
+		},
 	}
 
 	for _, kv := range input {
@@ -189,54 +324,62 @@ func TestSkipListEntries(t *testing.T) {
 		t.Fatalf("Expected %d entries, got %d", len(input), len(entries))
 	}
 
-	// Verify entries are in sorted order by key
+	// Verify that entries are sorted by key.
 	var lastKey []byte
-	for i, e := range entries {
-		if i > 0 && bytes.Compare(e.Key, lastKey) <= 0 {
-			t.Errorf("Entries are not in ascending order: %q came after %q", e.Key, lastKey)
+	for i, entry := range entries {
+		if i > 0 && bytes.Compare(entry.Key, lastKey) <= 0 {
+			t.Errorf("Entries not in ascending order: %q came after %q", entry.Key, lastKey)
 		}
-		lastKey = e.Key
+		lastKey = entry.Key
 	}
 }
 
-// Optional: a concurrency test to ensure thread-safety of Set and Get.
+// TestSkipListConcurrentAccess tests thread-safety by concurrently performing Set and Get operations.
 func TestSkipListConcurrentAccess(t *testing.T) {
 	sl := newSkipList()
 	var wg sync.WaitGroup
+
 	numGoroutines := 10
 	numKeysPerGoroutine := 100
 
-	// Writer goroutines
-	for i := 0; i < numGoroutines; i++ {
+	// Writer goroutines.
+	for gid := 0; gid < numGoroutines; gid++ {
 		wg.Add(1)
 		go func(gid int) {
 			defer wg.Done()
 			for k := 0; k < numKeysPerGoroutine; k++ {
 				key := []byte{byte(gid), byte(k)}
-				val := Value{Data: []byte{byte(gid), byte(k)}, Timestamp: int64(k)}
+				// Create an interval based on k.
+				earliest := time.Unix(int64(k), 0)
+				latest := earliest.Add(time.Second)
+				val := Value{
+					Data: []byte{byte(gid), byte(k)},
+					Timestamp: truetime.Interval{
+						Earliest: earliest,
+						Latest:   latest,
+					},
+				}
 				sl.Set(key, val)
 			}
-		}(i)
+		}(gid)
 	}
 
-	// Reader goroutines
-	for i := 0; i < numGoroutines; i++ {
+	// Reader goroutines.
+	for gid := 0; gid < numGoroutines; gid++ {
 		wg.Add(1)
 		go func(gid int) {
 			defer wg.Done()
 			for k := 0; k < numKeysPerGoroutine; k++ {
 				key := []byte{byte(gid), byte(k)}
-				sl.Get(key) // Just read; we don't check to avoid race with writes
+				_ = sl.Get(key)
 			}
-		}(i)
+		}(gid)
 	}
 
 	wg.Wait()
-	// Check skipList size is at least the total keys inserted
-	// Some might be duplicates if the same (gid,k) combination is used multiple times
-	// but in this example, each (gid,k) is unique, so we expect exactly numGoroutines * numKeysPerGoroutine.
+
 	expectedSize := numGoroutines * numKeysPerGoroutine
 	if sl.Len() != expectedSize {
-		t.Errorf("Expected skipList size=%d, got %d", expectedSize, sl.Len())
+		t.Errorf("Expected skiplist size=%d, got %d", expectedSize, sl.Len())
 	}
 }

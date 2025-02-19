@@ -99,25 +99,25 @@ func (m *memtable) ToColumnEntries() []Cell {
 }
 
 func parseCompositeKey(key []byte) (partitionKey []byte, ClusteringValues [][]byte, columnName []byte) {
-	// 1) Find the first occurrence of 0x00 => partitionKey is everything before it
+	// Find the first occurrence of 0x00 => partitionKey is everything before it.
 	idx00 := bytes.IndexByte(key, 0x00)
 	if idx00 < 0 {
-		// No 0x00? Return empty or handle error
+		// No 0x00? Return empty.
 		return nil, nil, nil
 	}
 	partitionKey = key[:idx00]
 
-	// Everything after idx00+1 is [ck data + columnName + 0x02]
+	// Everything after idx00+1 is [ck data + columnName + 0x02].
 	remainder := key[idx00+1:]
 	if len(remainder) == 0 {
 		// No data after partition key
 		return partitionKey, nil, nil
 	}
 
-	// 2) Find the last occurrence of 0x02 => everything after that is the columnName
+	// Find the last occurrence of 0x02 => everything after that is the columnName.
 	idx02 := bytes.LastIndexByte(remainder, 0x02)
 	if idx02 < 0 {
-		// No 0x02? Then maybe there's no column name. Or handle error if that's unexpected.
+		// No 0x02 means there's no column name
 		return partitionKey, nil, nil
 	}
 	columnName = remainder[idx02+1:]
@@ -126,7 +126,7 @@ func parseCompositeKey(key []byte) (partitionKey []byte, ClusteringValues [][]by
 		columnName = nil
 	}
 
-	// 3) Everything before idx02 are the clustering keys, separated by 0x01
+	// Everything before idx02 are the clustering keys, separated by 0x01.
 	ckRaw := remainder[:idx02]
 	if len(ckRaw) > 0 {
 		parts := bytes.Split(ckRaw, []byte{0x01})

@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"math/rand"
 	"sync"
+	"time"
+
+	"github.com/flynnfc/bagginsdb/pkg/bagginsdb/truetime"
 )
 
 // Value represents the data stored in each skipList node.
 type Value struct {
 	Data      []byte
-	Timestamp int64
+	Timestamp truetime.Interval
 }
 
 // node is one element of the skipList.
@@ -92,8 +95,14 @@ func (sl *skipList) Set(key []byte, val Value) {
 	current = current.next[0]
 
 	// If key already exists, update it if the new timestamp is newer.
+	// If key already exists, update it if the new interval is newer.
 	if current != nil && bytes.Equal(current.key, key) {
-		if val.Timestamp > current.value.Timestamp {
+		// Compute midpoints for comparison.
+		newMid := intervalMidpoint(val.Timestamp)
+		curMid := intervalMidpoint(current.value.Timestamp)
+
+		// Update if the new interval’s midpoint is later than the current one.
+		if newMid.After(curMid) {
 			current.value = val
 		}
 		return
@@ -134,6 +143,8 @@ func (sl *skipList) Len() int {
 	return sl.size
 }
 
+// Entries returns a slice of all (key, Value) pairs. We can parse them
+// into wide-column entries if needed. This is used by the flush code.
 func (sl *skipList) Entries() []struct {
 	Key []byte
 	Val Value
@@ -157,4 +168,9 @@ func (sl *skipList) Entries() []struct {
 		x = x.next[0]
 	}
 	return result
+}
+
+// intervalMidpoint returns the midpoint of an interval.
+func intervalMidpoint(i truetime.Interval) time.Time {
+	return i.Earliest.Add(i.Latest.Sub(i.Earliest) / 2)
 }

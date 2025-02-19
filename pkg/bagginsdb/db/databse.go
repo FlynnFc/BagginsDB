@@ -20,7 +20,7 @@ type Database struct {
 	oldMemtable       *memtable       // Used during flushes.
 	sstManager        *sstableManager // Handles compaction, reading, and writing SSTables.
 	mu                sync.RWMutex
-	clock             *truetime.TrueTime // An attempt at simulating Google's true time clock to eliminate distributed locks.
+	clock             truetime.TrueTime // An attempt at simulating Google's true time clock to eliminate distributed locks.
 	flushMu           sync.Mutex
 	compactionTrigger chan struct{}
 
@@ -31,7 +31,7 @@ type Database struct {
 // Anything that fails in this call will cause a panic. Something is seriously wrong if this fails to run.
 func NewDatabase(l *zap.Logger, c Config) *Database {
 	// 1. Start a TrueTime clock
-	clock := truetime.NewTrueTime(l)
+	clock := truetime.NewNTPTime("time.google.com")
 	// 2. Create the primary memtable
 	memtable := newMemtable()
 
@@ -73,11 +73,17 @@ func (db *Database) Put(partKey []byte, clustering [][]byte, colName []byte, val
 	db.wal.Info("Put", zap.ByteString("partKey", partKey), zap.ByteStrings("clustering", clustering), zap.ByteString("colName", colName), zap.ByteString("value", value))
 	// Then write to the memtable.
 	// This is a simple write to the memtable. We don't need to worry about the SSTables here.
+
+	timestamp, err := db.clock.NowInterval()
+	if err != nil {
+		db.logger.Error("Failed to get timestamp", zap.Error(err))
+	}
 	db.memtable.Put(Cell{
 		PartitionKey:     partKey,
 		ClusteringValues: clustering,
 		ColumnName:       colName,
 		Value:            value,
+		Timestamp:        timestamp,
 	})
 
 	needFlush := db.memtable.Len() > db.flushThreshold
