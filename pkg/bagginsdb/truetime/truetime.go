@@ -1,37 +1,28 @@
 package truetime
 
-import (
-	"sync"
-	"time"
+import "time"
 
-	"go.uber.org/zap"
-)
-
-// Timestamp represents a point in time with uncertainty bounds.
-type Timestamp struct {
+// Interval represents the time interval [Earliest, Latest] within which the true time is guaranteed to lie.
+type Interval struct {
 	Earliest time.Time
 	Latest   time.Time
 }
 
-// TrueTime provides time with bounded uncertainty.
-type TrueTime struct {
-	uncertainty time.Duration
-	mu          sync.RWMutex
-	time        Timestamp
-	logger      *zap.Logger
-	initialized bool
-}
+// TrueTime defines the interface for a trusted time service.
+type TrueTime interface {
+	// GetTime returns the current time along with the duration it took to fetch it.
+	GetTime() (time.Time, time.Duration)
 
-// NewTrueTime creates a new TrueTime instance with the given uncertainty and logger.
-func NewTrueTime(logger *zap.Logger) *TrueTime {
-	tt := &TrueTime{
-		logger:      logger,
-		initialized: true,
-	}
-	return tt
-}
+	// SetTime sets the system time to newTime.
+	SetTime(newTime time.Time) error
 
-// Now returns the current time along with uncertainty bounds.
-func (tt *TrueTime) Now() Timestamp {
-	return Timestamp{Earliest: time.Now(), Latest: time.Now()}
+	// NowInterval returns an interval within which the true time is guaranteed to lie.
+	// This interval accounts for clock uncertainty.
+	NowInterval() (Interval, error)
+
+	// MaxOffset returns the maximum clock uncertainty.
+	MaxOffset() time.Duration
+
+	// WaitUntil blocks until the true time is guaranteed to be after the provided timestamp.
+	WaitUntil(t time.Time) error
 }
