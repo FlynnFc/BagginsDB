@@ -104,7 +104,7 @@ type IndexEntry struct {
 	Offset int64
 }
 
-// sstable holds in–memory metadata for an sstable file.
+// sstable holds in–memory metadata for an sstable file (also written to disk but kept in memory for faster retrieval).
 type sstable struct {
 	filePath    string
 	index       []IndexEntry
@@ -115,7 +115,7 @@ type sstable struct {
 	bufPool     sync.Pool
 }
 
-// Writesstable writes a new sstable file with the provided cells.
+// WriteSSTables writes a new sstable file with the provided cells.
 // The cells must be sorted in increasing order by their composite key.
 // Every sparseInterval-th cell is recorded in the sparse index.
 // The Bloom filter is sized using expectedItems and falsePositiveRate.
@@ -130,10 +130,9 @@ func writeSSTable(filePath string, cells []Cell, sparseInterval int, expectedIte
 	if _, err := f.Write([]byte(headerMagic)); err != nil {
 		return nil, err
 	}
-	// dataStart marks the beginning of the data region.
+	
 	dataStart := int64(len(headerMagic))
 
-	// Create a new Bloom filter using the library.
 	bf := bloom.NewWithEstimates(uint(expectedItems), falsePositiveRate)
 
 	var indexEntries []IndexEntry
@@ -227,7 +226,7 @@ func writeSSTable(filePath string, cells []Cell, sparseInterval int, expectedIte
 	}, nil
 }
 
-// Loadsstable loads an sstable from disk, reconstructing its sparse index and Bloom filter.
+// loadSSTable loads an sstable from disk, reconstructing its sparse index and Bloom filter.
 func loadSSTable(filePath string) (*sstable, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
