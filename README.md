@@ -31,7 +31,7 @@
   Stores recently written data in a sorted skiplist for quick insertion and retrieval. Once it reaches a certain size threshold, it is flushed to disk as an immutable SSTable.
 
 - **SSTables (On-Disk Storage):**  
-  Writes are organized into append-only, immutable files known as SSTables. Each SSTable is sorted by key and includes:
+  Writes are organised into append-only, immutable files known as SSTables. Each SSTable is sorted by key and includes:
   - A Bloom filter to quickly determine if a key might exist.
   - A sparse index to jump near the desired key without scanning the entire file.
 - **Compaction:**  
@@ -42,21 +42,16 @@
 
 ## Project Structure
 
-- `internal/database/`  
-  Contains the core database logic including:
+- `pkg/bagginsdb/db`  
+  Contains the core database logic, including:
 
   - `database.go`: The `Database` struct that ties together mem-tables, SSTableManager, and timing.
   - `memtable.go`, `skiplist.go`: In-memory skiplist for quick writes and reads.
   - `sstable.go`, `sstable_manager.go`: Handling on-disk SSTables, building them from memtables, indexing, and merging them during compaction.
 
-- `internal/truetime/`  
+- `pkg/bagginsdb/truetime`  
   Mock time service that provides timestamps for record inserts.
 
-- `simulation/`  
-  Contains load-testing and simulation scripts that run various scenarios:
-  - Bulk inserts and reads.
-  - Mixed workloads (reads/writes).
-  - Realistic Cassandra-like loads with random keys, values, and read/write ratios.
 - `logger/`  
   A simple logging wrapper configured to produce structured logs via `zap`.
 
@@ -66,9 +61,8 @@ I've opted to track and log performance at quite a granular level. You can find 
 ## Roadmap
 
 - Add delete support (tombstones).
-- Implement proper error handling and recovery after crashes.
-- Infinite scale!
-- Integrate more benchmarks and profiling tools to guide optimizations.
+- Implement improved error handling and recovery after crashes.
+- Integrate more benchmarks and profiling tools to guide optimisations.
 
 ## License
 
