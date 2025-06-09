@@ -11,4 +11,4 @@ remote_write:
   - url: "https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push"
     basic_auth:
       username: "1971290"
-      password: "glc_eyJvIjoiMTMwNzI0MCIsIm4iOiJzdGFjay0xMTI3MTIwLWhtLXdyaXRlLWJhZ2dpbnNkYiIsImsiOiJXSzJRUzR0dnA0MDcyYVlBNDhSZjBOTzkiLCJtIjp7InIiOiJwcm9kLWV1LXdlc3QtMiJ9fQ=="
+      password: ""
