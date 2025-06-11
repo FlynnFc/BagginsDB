@@ -30,12 +30,10 @@ type Database struct {
 // NewDatabase creates a new DB instance, sets up the memtable, sstable manager, etc.
 // Anything that fails in this call will cause a panic. Something is seriously wrong if this fails to run.
 func NewDatabase(l *zap.Logger, c Config) *Database {
-	// 1. Start a TrueTime clock
 	clock := truetime.NewNTPTime("time.google.com")
-	// 2. Create the primary memtable
+
 	memtable := newMemtable()
 
-	// 3. Build your  SSTable manager
 	nodeID := os.Getenv("NODE_ID")
 	if nodeID == "" {
 		l.Fatal("NODE_ID environment variable must be set")
@@ -53,7 +51,6 @@ func NewDatabase(l *zap.Logger, c Config) *Database {
 
 	wal := logger.InitWALLogger("wal/wal")
 
-	// 4. Construct the Database struct
 	db := &Database{
 		logger:            l,
 		config:            c,

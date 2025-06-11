@@ -25,8 +25,6 @@ func (m *memtable) Len() int {
 	return m.skiplist.Len()
 }
 
-// Entries returns a slice of all (key, Value) pairs. You can parse them
-// into wide-column entries if needed. This is used by the flush code.
 func (m *memtable) Entries() []struct {
 	Key []byte
 	Val Value
