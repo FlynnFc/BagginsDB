@@ -2,7 +2,7 @@
   <img  width="200" src="https://github.com/user-attachments/assets/3bb7c1cc-5c97-4755-aa12-dfa85bc91344" alt="Centered Image"/>
   <h1 align="center">Baggins DB</h1>
 </p>
-
+Hi!
 <p align="center">
   Baggins DB is a simple Cassandra-inspired wide-column db. While not production-ready, it serves as an educational project to explore low-level database internals, concurrency control, and performance-tuning techniques.
   <br/>
